@@ -1,0 +1,111 @@
+# ============================================
+# EXCLUDE OLD FRONTEND FOLDER
+# ============================================
+frontend/
+
+# ============================================
+# Node Modules
+# ============================================
+node_modules/
+*/node_modules/
+**/node_modules/
+
+# ============================================
+# Environment Variables
+# ============================================
+.env
+.env.local
+.env.*.local
+**/.env
+**/.env.local
+
+# ============================================
+# Next.js (fe-nextjs)
+# ============================================
+fe-nextjs/.next/
+fe-nextjs/out/
+fe-nextjs/.swc/
+fe-nextjs/build/
+
+# ============================================
+# Backend Build & Dist
+# ============================================
+backend/dist/
+backend/build/
+backend/*.tsbuildinfo
+
+# ============================================
+# Prisma
+# ============================================
+backend/prisma/migrations/**/migration.sql
+backend/prisma/*.db
+backend/prisma/*.db-journal
+
+# ============================================
+# Logs
+# ============================================
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ============================================
+# OS Files
+# ============================================
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# ============================================
+# IDE / Editor
+# ============================================
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# ============================================
+# Testing
+# ============================================
+coverage/
+.nyc_output/
+*.lcov
+
+# ============================================
+# Temporary Files
+# ============================================
+*.tmp
+*.temp
+.cache/
+
+# ============================================
+# Package Manager Locks (Optional)
+# ============================================
+# Uncomment if you want to ignore lock files
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# ============================================
+# Build Artifacts
+# ============================================
+*.tgz
+*.zip
+*.tar.gz
+
+# ============================================
+# Vercel (if deploying fe-nextjs)
+# ============================================
+.vercel
+
+# ============================================
+# Docs Build (if using VitePress/Docusaurus)
+# ============================================
+docs/.vitepress/dist/
+docs/.vitepress/cache/
+docs/build/
+docs/node_modules/

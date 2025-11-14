@@ -1,0 +1,100 @@
+// This is your Prisma schema file
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model with role enum
+enum UserRole {
+  manager
+  staff
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  passwordHash String?
+  role      UserRole
+  isVerified Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Self-relation for manager-staff relationship
+  managerId String?
+  manager   User?   @relation("ManagerStaff", fields: [managerId], references: [id])
+  staff     User[]  @relation("ManagerStaff")
+
+  // Relations to other models
+  createdTasks    Task[]    @relation("CreatedBy")
+  assignedTasks   Task[]    @relation("AssignedTo")
+  comments        Comment[]
+  activityLogs    ActivityLog[]
+}
+
+// Task model with priority and status enums
+enum TaskPriority {
+  low
+  medium
+  high
+}
+
+enum TaskStatus {
+  todo
+  in_progress
+  pending_review
+  approved
+  rejected
+}
+
+model Task {
+  id          String       @id @default(uuid())
+  title       String
+  description String
+  priority    TaskPriority
+  status      TaskStatus   @default(todo)
+  deadline    DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  // Relations
+  createdById String
+  createdBy   User     @relation("CreatedBy", fields: [createdById], references: [id])
+  assignedToId String
+  assignedTo   User     @relation("AssignedTo", fields: [assignedToId], references: [id])
+
+  comments     Comment[]
+  activityLogs ActivityLog[]
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  message   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model ActivityLog {
+  id        String   @id @default(uuid())
+  action    String
+  oldValue  String?
+  newValue  String?
+  createdAt DateTime @default(now())
+
+  // Relations
+  taskId    String?
+  task      Task?    @relation(fields: [taskId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+}
