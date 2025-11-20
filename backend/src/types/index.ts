@@ -40,6 +40,23 @@ export interface UpdateTaskStatusDTO {
   status: "todo" | "in_progress" | "pending_review" | "approved" | "rejected";
 }
 
+export interface UserWithStaff {
+  id: string;
+  name: string;
+  email: string;
+  role: "manager" | "staff";
+  isVerified: boolean;
+  managerId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  staff?: UserWithStaff[];
+}
+
+export interface UpdateUserRoleDTO {
+  role: "manager" | "staff";
+  managerId?: string | null;
+}
+
 export interface CreateCommentDTO {
   message: string;
   taskId: string;

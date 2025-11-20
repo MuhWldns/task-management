@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { registerManager, createStaffViaAdmin } from "../controllers/admin.controller";
+import { registerManager, createStaffViaAdmin, getAllUsers, updateUserRoleController, softDeleteUserController } from "../controllers/admin.controller";
 import { getAllManagers } from "../services/auth.service";
 import { validateAdminSecret } from "../middlewares/auth.middleware";
 
@@ -11,7 +11,7 @@ router.use(validateAdminSecret);
 router.post("/managers", registerManager);
 router.post("/staff", createStaffViaAdmin);
 
-// ✅ Get all managers (untuk dropdown)
+// Get users
 router.get("/managers", async (req, res) => {
   try {
     const managers = await getAllManagers();
@@ -21,6 +21,13 @@ router.get("/managers", async (req, res) => {
   }
 });
 
-// ❌ HAPUS getAllUsers - GAK PERLU!
+// Get all users with hierarchy
+router.get("/users", getAllUsers);
+
+// Update user role and manager assignment
+router.put("/users/:id/role", updateUserRoleController);
+
+// Soft delete user
+router.delete("/users/:id", softDeleteUserController);
 
 export default router;

@@ -7,13 +7,42 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/Button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { UserPlus, Shield, Users, Eye, EyeOff, LogOut } from "lucide-react";
+import { UserPlus, Shield, Users, Eye, EyeOff, LogOut, Edit, Trash2, UserCog, ChevronDown, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 
 interface Manager {
   id: string;
   name: string;
   email: string;
+}
+
+interface Staff {
+  id: string;
+  name: string;
+  email: string;
+  role: "admin" | "manager" | "staff";
+  managerId: string;
+  createdAt: string;
+  manager?: {
+    id: string;
+    name: string;
+    email: string;
+  };
+}
+
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: "admin" | "manager" | "staff";
+  managerId?: string;
+  manager?: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  staff?: Staff[];
+  createdAt: string;
 }
 
 interface AdminPanelProps {
@@ -41,11 +70,45 @@ export default function AdminPanel({ secretKey, onLogout }: AdminPanelProps) {
   const [managers, setManagers] = useState<Manager[]>([]);
   const [isLoadingManagers, setIsLoadingManagers] = useState(false);
 
+  // User management state
+  const [users, setUsers] = useState<User[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletingUser, setDeletingUser] = useState<User | null>(null);
+  const [expandedManagers, setExpandedManagers] = useState<Set<string>>(new Set());
+  const [newRole, setNewRole] = useState<"manager" | "staff">("staff");
+  const [newManagerId, setNewManagerId] = useState("");
+
   useEffect(() => {
     fetchManagers();
+    fetchUsers();
   }, []);
 
-  // ...existing code...
+  const fetchUsers = async () => {
+    setIsLoadingUsers(true);
+    try {
+      const response = await fetch("http://localhost:3007/api/admin/users", {
+        headers: {
+          "X-Admin-Secret": secretKey,
+        },
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setUsers(data.users || []);
+      } else {
+        toast.error("Failed to load users");
+      }
+    } catch (error) {
+      console.error("Failed to fetch users:", error);
+      toast.error("Failed to load users");
+    } finally {
+      setIsLoadingUsers(false);
+    }
+  };
 
   const fetchManagers = async () => {
     setIsLoadingManagers(true);
@@ -159,6 +222,94 @@ export default function AdminPanel({ secretKey, onLogout }: AdminPanelProps) {
     }
   };
 
+  // UI Functions for User Management
+  const toggleManagerExpansion = (managerId: string) => {
+    const newExpanded = new Set(expandedManagers);
+    if (newExpanded.has(managerId)) {
+      newExpanded.delete(managerId);
+    } else {
+      newExpanded.add(managerId);
+    }
+    setExpandedManagers(newExpanded);
+  };
+
+  const openEditModal = (user: User) => {
+    setEditingUser(user);
+    setNewRole(user.role === "admin" ? "manager" : user.role);
+    setNewManagerId(user.managerId || "");
+    setShowEditModal(true);
+  };
+
+  const openDeleteModal = (user: User) => {
+    setDeletingUser(user);
+    setShowDeleteModal(true);
+  };
+
+  const closeEditModal = () => {
+    setShowEditModal(false);
+    setEditingUser(null);
+    setNewRole("staff");
+    setNewManagerId("");
+  };
+
+  const closeDeleteModal = () => {
+    setShowDeleteModal(false);
+    setDeletingUser(null);
+  };
+
+  const handleEditRole = async () => {
+    if (!editingUser) return;
+
+    try {
+      const response = await fetch(`http://localhost:3007/api/admin/users/${editingUser.id}/role`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Admin-Secret": secretKey,
+        },
+        body: JSON.stringify({
+          role: newRole,
+          managerId: newRole === "staff" ? newManagerId : null,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to update user role");
+      }
+
+      toast.success("User role updated successfully!");
+      closeEditModal();
+      fetchUsers(); // Refresh user list
+    } catch (error: any) {
+      toast.error(error.message || "Failed to update user role");
+    }
+  };
+
+  const handleDeleteUser = async () => {
+    if (!deletingUser) return;
+
+    try {
+      const response = await fetch(`http://localhost:3007/api/admin/users/${deletingUser.id}`, {
+        method: "DELETE",
+        headers: {
+          "X-Admin-Secret": secretKey,
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to delete user");
+      }
+
+      toast.success("User deleted successfully!");
+      closeDeleteModal();
+      fetchUsers(); // Refresh user list
+    } catch (error: any) {
+      toast.error(error.message || "Failed to delete user");
+    }
+  };
+
   // ...existing code...
 
   return (
@@ -179,7 +330,7 @@ export default function AdminPanel({ secretKey, onLogout }: AdminPanelProps) {
         </div>
 
         <Tabs defaultValue="manager" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-8">
+          <TabsList className="grid w-full grid-cols-3 mb-8">
             <TabsTrigger value="manager" className="flex items-center gap-2">
               <Shield className="w-4 h-4" />
               Create Manager
@@ -187,6 +338,10 @@ export default function AdminPanel({ secretKey, onLogout }: AdminPanelProps) {
             <TabsTrigger value="staff" className="flex items-center gap-2">
               <Users className="w-4 h-4" />
               Create Staff
+            </TabsTrigger>
+            <TabsTrigger value="users" className="flex items-center gap-2">
+              <UserCog className="w-4 h-4" />
+              User Management
             </TabsTrigger>
           </TabsList>
 
@@ -333,8 +488,216 @@ export default function AdminPanel({ secretKey, onLogout }: AdminPanelProps) {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* User Management Tab */}
+          <TabsContent value="users">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <UserCog className="w-5 h-5" />
+                  User Management
+                </CardTitle>
+                <CardDescription>View and manage all users in the system</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {isLoadingUsers ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+                    <span className="ml-2">Loading users...</span>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {/* Managers Section */}
+                    <div className="space-y-2">
+                      <h3 className="text-lg font-semibold text-gray-900">Managers</h3>
+                      {users
+                        .filter((u) => u.role === "manager")
+                        .map((manager) => (
+                          <div key={manager.id} className="border rounded-lg p-4 bg-gray-50">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <button onClick={() => toggleManagerExpansion(manager.id)} className="p-1 hover:bg-gray-200 rounded">
+                                  {expandedManagers.has(manager.id) ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                                </button>
+                                <div>
+                                  <p className="font-medium">{manager.name}</p>
+                                  <p className="text-sm text-gray-600">{manager.email}</p>
+                                  <p className="text-xs text-blue-600">Manager</p>
+                                </div>
+                              </div>
+                              <div className="flex gap-2">
+                                <Button variant="outline" size="sm" onClick={() => openEditModal(manager)}>
+                                  <Edit className="w-4 h-4" />
+                                </Button>
+                                <Button variant="outline" size="sm" onClick={() => openDeleteModal(manager)} className="text-red-600 hover:text-red-700">
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </div>
+
+                            {/* Staff under this manager */}
+                            {expandedManagers.has(manager.id) && (
+                              <div className="mt-4 ml-8 space-y-2">
+                                <p className="text-sm font-medium text-gray-700">Staff Members:</p>
+                                {manager.staff && manager.staff.length > 0 ? (
+                                  manager.staff.map((staff) => (
+                                      <div key={staff.id} className="border rounded p-3 bg-white">
+                                        <div className="flex items-center justify-between">
+                                          <div>
+                                            <p className="font-medium">{staff.name}</p>
+                                            <p className="text-sm text-gray-600">{staff.email}</p>
+                                            <p className="text-xs text-green-600">Staff</p>
+                                          </div>
+                                          <div className="flex gap-2">
+                                            <Button variant="outline" size="sm" onClick={() => openEditModal(staff)}>
+                                              <Edit className="w-4 h-4" />
+                                            </Button>
+                                            <Button variant="outline" size="sm" onClick={() => openDeleteModal(staff)} className="text-red-600 hover:text-red-700">
+                                              <Trash2 className="w-4 h-4" />
+                                            </Button>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))
+                                ) : (
+                                  <p className="text-sm text-gray-500 italic">No staff members assigned</p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                    </div>
+
+                    {/* Unassigned Staff Section */}
+                    <div className="space-y-2">
+                      <h3 className="text-lg font-semibold text-gray-900">Unassigned Staff</h3>
+                      {users.filter((u) => u.role === "staff" && !u.managerId).length > 0 ? (
+                        users
+                          .filter((u) => u.role === "staff" && !u.managerId)
+                          .map((staff) => (
+                            <div key={staff.id} className="border rounded-lg p-4 bg-yellow-50">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="font-medium">{staff.name}</p>
+                                  <p className="text-sm text-gray-600">{staff.email}</p>
+                                  <p className="text-xs text-orange-600">Staff (Unassigned)</p>
+                                </div>
+                                <div className="flex gap-2">
+                                  <Button variant="outline" size="sm" onClick={() => openEditModal(staff)}>
+                                    <Edit className="w-4 h-4" />
+                                  </Button>
+                                  <Button variant="outline" size="sm" onClick={() => openDeleteModal(staff)} className="text-red-600 hover:text-red-700">
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          ))
+                      ) : (
+                        <p className="text-sm text-gray-500 italic">No unassigned staff members</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
         </Tabs>
       </div>
+
+      {/* Edit Role Modal */}
+      {showEditModal && editingUser && (
+        <div className="fixed inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 shadow-2xl">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle>Edit User Role</CardTitle>
+              <CardDescription>Change role and assignment for {editingUser.name}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>User Info</Label>
+                <div className="p-3 bg-gray-50 rounded">
+                  <p className="font-medium">{editingUser.name}</p>
+                  <p className="text-sm text-gray-600">{editingUser.email}</p>
+                  <p className="text-xs text-gray-500">Current role: {editingUser.role}</p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="new-role">New Role</Label>
+                <Select value={newRole} onValueChange={(value: "manager" | "staff") => setNewRole(value)}>
+                  <SelectTrigger id="new-role">
+                    <SelectValue placeholder="Select role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="manager">Manager</SelectItem>
+                    <SelectItem value="staff">Staff</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {newRole === "staff" && (
+                <div className="space-y-2">
+                  <Label htmlFor="assign-manager">Assign to Manager</Label>
+                  <Select value={newManagerId} onValueChange={setNewManagerId}>
+                    <SelectTrigger id="assign-manager">
+                      <SelectValue placeholder="Select manager" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {managers.map((manager) => (
+                        <SelectItem key={manager.id} value={manager.id}>
+                          {manager.name} ({manager.email})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-4">
+                <Button variant="outline" onClick={closeEditModal} className="flex-1">
+                  Cancel
+                </Button>
+                <Button onClick={handleEditRole} className="flex-1">
+                  Update Role
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Delete User Modal */}
+      {showDeleteModal && deletingUser && (
+        <div className="fixed inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 shadow-2xl">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle className="text-red-600">Delete User</CardTitle>
+              <CardDescription>Are you sure you want to delete this user?</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="p-3 bg-red-50 rounded border border-red-200">
+                <p className="font-medium">{deletingUser.name}</p>
+                <p className="text-sm text-gray-600">{deletingUser.email}</p>
+                <p className="text-xs text-gray-500">Role: {deletingUser.role}</p>
+              </div>
+
+              <p className="text-sm text-red-600">
+                <strong>Warning:</strong> This action cannot be undone. All data associated with this user will be permanently deleted.
+              </p>
+
+              <div className="flex gap-2 pt-4">
+                <Button variant="outline" onClick={closeDeleteModal} className="flex-1">
+                  Cancel
+                </Button>
+                <Button variant="destructive" onClick={handleDeleteUser} className="flex-1">
+                  Delete User
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

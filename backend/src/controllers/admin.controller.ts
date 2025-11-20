@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
-import { createManager, createStaffByAdmin } from "../services/auth.service";
+import { createManager, createStaffByAdmin, getAllUsersWithHierarchy, updateUserRole, softDeleteUser } from "../services/auth.service";
+import { UpdateUserRoleDTO } from "../types";
 
 export const registerManager = async (req: Request, res: Response): Promise<Response> => {
   try {
@@ -32,6 +33,46 @@ export const createStaffViaAdmin = async (req: Request, res: Response): Promise<
     const { passwordHash, ...staffWithoutPassword } = staff;
 
     return res.status(201).json(staffWithoutPassword);
+  } catch (error: any) {
+    return res.status(400).json({ error: error.message });
+  }
+};
+
+export const getAllUsers = async (req: Request, res: Response): Promise<Response> => {
+  try {
+    const users = await getAllUsersWithHierarchy();
+    return res.json({ users });
+  } catch (error: any) {
+    return res.status(500).json({ error: "Failed to fetch users" });
+  }
+};
+
+export const updateUserRoleController = async (req: Request, res: Response): Promise<Response> => {
+  try {
+    const { id } = req.params;
+    const roleData: UpdateUserRoleDTO = req.body;
+
+    // Validate input
+    if (!roleData.role || !["manager", "staff"].includes(roleData.role)) {
+      return res.status(400).json({ error: "Valid role (manager or staff) is required" });
+    }
+
+    const updatedUser = await updateUserRole(id, roleData);
+    return res.json(updatedUser);
+  } catch (error: any) {
+    return res.status(400).json({ error: error.message });
+  }
+};
+
+export const softDeleteUserController = async (req: Request, res: Response): Promise<Response> => {
+  try {
+    const { id } = req.params;
+
+    const deletedUser = await softDeleteUser(id);
+    return res.json({
+      message: "User deleted successfully",
+      user: deletedUser
+    });
   } catch (error: any) {
     return res.status(400).json({ error: error.message });
   }

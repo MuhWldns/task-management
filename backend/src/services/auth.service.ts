@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { User } from "@prisma/client";
-import { LoginDTO, CreateUserDTO } from "../types";
+import { LoginDTO, CreateUserDTO, UserWithStaff, UpdateUserRoleDTO } from "../types";
 import { prisma } from "../../db/prisma"; // ✅ Fix path
 
 export const hashPassword = async (password: string): Promise<string> => {
@@ -39,6 +39,157 @@ export const getAllManagers = async (): Promise<Omit<User, "passwordHash">[]> =>
   });
 
   return managers;
+};
+
+export const getAllUsersWithHierarchy = async (): Promise<UserWithStaff[]> => {
+  // Get all managers with their staff
+  const managers = await prisma.user.findMany({
+    where: {
+      role: "manager",
+    },
+    include: {
+      staff: {
+        where: {
+          role: "staff",
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+
+  // Get unassigned staff (staff without manager)
+  const unassignedStaff = await prisma.user.findMany({
+    where: {
+      role: "staff",
+      managerId: null,
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+
+  // Transform data to match UserWithStaff interface (exclude passwordHash)
+  const transformedManagers = managers.map(manager => ({
+    id: manager.id,
+    name: manager.name,
+    email: manager.email,
+    role: manager.role as "manager" | "staff",
+    isVerified: manager.isVerified,
+    managerId: manager.managerId,
+    createdAt: manager.createdAt,
+    updatedAt: manager.updatedAt,
+    staff: manager.staff.map(staff => ({
+      id: staff.id,
+      name: staff.name,
+      email: staff.email,
+      role: staff.role as "manager" | "staff",
+      isVerified: staff.isVerified,
+      managerId: staff.managerId,
+      createdAt: staff.createdAt,
+      updatedAt: staff.updatedAt,
+    })),
+  }));
+
+  const transformedUnassignedStaff = unassignedStaff.map(staff => ({
+    id: staff.id,
+    name: staff.name,
+    email: staff.email,
+    role: staff.role as "manager" | "staff",
+    isVerified: staff.isVerified,
+    managerId: staff.managerId,
+    createdAt: staff.createdAt,
+    updatedAt: staff.updatedAt,
+  }));
+
+  // Combine managers and unassigned staff
+  const allUsers: UserWithStaff[] = [
+    ...transformedManagers,
+    ...transformedUnassignedStaff,
+  ];
+
+  return allUsers;
+};
+
+export const updateUserRole = async (userId: string, data: UpdateUserRoleDTO): Promise<Omit<User, "passwordHash">> => {
+  // Check if user exists
+  const existingUser = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+
+  if (!existingUser) {
+    throw new Error("User not found");
+  }
+
+  // If changing to staff, managerId is required
+  if (data.role === "staff" && !data.managerId) {
+    throw new Error("Manager ID is required when assigning staff role");
+  }
+
+  // If changing to manager, remove managerId
+  if (data.role === "manager") {
+    data.managerId = null;
+  }
+
+  // If changing managerId, validate the new manager exists and is a manager
+  if (data.managerId) {
+    const newManager = await prisma.user.findUnique({
+      where: { id: data.managerId },
+    });
+
+    if (!newManager || newManager.role !== "manager") {
+      throw new Error("Invalid manager ID");
+    }
+  }
+
+  // Update user role and manager assignment
+  const updatedUser = await prisma.user.update({
+    where: { id: userId },
+    data: {
+      role: data.role,
+      managerId: data.managerId,
+    },
+  });
+
+  const { passwordHash, ...userWithoutPassword } = updatedUser;
+  return userWithoutPassword;
+};
+
+export const softDeleteUser = async (userId: string): Promise<Omit<User, "passwordHash">> => {
+  // Check if user exists
+  const existingUser = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+
+  if (!existingUser) {
+    throw new Error("User not found");
+  }
+
+  // If deleting a manager, check if they have staff
+  if (existingUser.role === "manager") {
+    const staffCount = await prisma.user.count({
+      where: {
+        managerId: userId,
+      },
+    });
+
+    if (staffCount > 0) {
+      throw new Error(`Cannot delete manager with ${staffCount} staff members. Please reassign staff first.`);
+    }
+  }
+
+  // For now, we'll hard delete (remove from database)
+  // TODO: Change to soft delete when deletedAt field is added to schema
+  const deletedUser = await prisma.user.delete({
+    where: { id: userId },
+  });
+
+  const { passwordHash, ...userWithoutPassword } = deletedUser;
+  return userWithoutPassword;
 };
 export const getStaffByManagerId = async (managerId: string): Promise<Omit<User, "passwordHash">[]> => {
   const staff = await prisma.user.findMany({
