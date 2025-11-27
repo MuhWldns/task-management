@@ -22,6 +22,7 @@ router.get("/staff", authenticate, async (req: AuthRequest, res) => {
       where: {
         role: "staff",
         managerId: req.user.id, // ✅ Filter by current manager's ID
+        deletedAt: null, // ✅ Only active staff
       },
       select: {
         id: true,

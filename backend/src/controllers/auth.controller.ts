@@ -70,8 +70,9 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
       },
     });
   } catch (error) {
+    console.error(error.msg);
     return res.status(401).json({
-      error: error.message,
+      error: "Something Went Wrong, Please Try Again",
     });
   }
 };
@@ -92,7 +93,8 @@ export const createStaff = async (req: AuthRequest, res: Response): Promise<Resp
 
     return res.status(201).json(userWithoutPassword);
   } catch (error: any) {
-    return res.status(400).json({ error: error.message });
+    console.error(error.msg);
+    return res.status(400).json({ error: "Error creating staff, please retry" });
   }
 };
 

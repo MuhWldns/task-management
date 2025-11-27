@@ -9,7 +9,7 @@ export const getUserProfile = async (userId: string): Promise<User> => {
     where: { id: userId },
   });
 
-  if (!user) {
+  if (!user || user.deletedAt) {
     throw new Error("User not found");
   }
 
@@ -22,7 +22,7 @@ export const updateUserProfile = async (userId: string, data: UpdateUserDTO): Pr
     where: { id: userId },
   });
 
-  if (!user) {
+  if (!user || user.deletedAt) {
     throw new Error("User not found");
   }
 
@@ -43,7 +43,7 @@ export const changePassword = async (userId: string, data: ChangePasswordDTO): P
     where: { id: userId },
   });
 
-  if (!user || !user.passwordHash) {
+  if (!user || !user.passwordHash || user.deletedAt) {
     throw new Error("User not found");
   }
 
@@ -68,7 +68,7 @@ export const changePassword = async (userId: string, data: ChangePasswordDTO): P
 export const listUsers = async (managerId: string, page: number = 1, limit: number = 10, search?: string): Promise<{ users: User[]; total: number }> => {
   // Verify manager exists
   const manager = await prisma.user.findFirst({
-    where: { id: managerId, role: "manager" },
+    where: { id: managerId, role: "manager", deletedAt: null },
   });
 
   if (!manager) {
@@ -78,6 +78,7 @@ export const listUsers = async (managerId: string, page: number = 1, limit: numb
   // Build where clause for search
   const where = {
     managerId,
+    deletedAt: null,
     ...(search && {
       OR: [{ name: { contains: search, mode: "insensitive" as const } }, { email: { contains: search, mode: "insensitive" as const } }],
     }),

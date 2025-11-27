@@ -3,9 +3,10 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { CheckSquare, LogOut, User, Clock, AlertCircle, CheckCircle2, Calendar, X } from "lucide-react";
+import { CheckSquare, LogOut, User, Clock, AlertCircle, CheckCircle2, Calendar, X, Eye, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 
 interface User {
@@ -23,6 +24,7 @@ interface Task {
   priority: "low" | "medium" | "high";
   dueDate: string;
   completionNotes?: string;
+  jobResult?: string[];
   createdAt: string;
 }
 
@@ -34,8 +36,11 @@ export default function StaffPage() {
 
   // Modal state
   const [showCompleteModal, setShowCompleteModal] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [completionNotes, setCompletionNotes] = useState("");
+  const [jobResult, setJobResult] = useState<string[]>([]);
+  const [newLink, setNewLink] = useState("");
 
   useEffect(() => {
     verifyAccess();
@@ -89,25 +94,70 @@ export default function StaffPage() {
     }
   };
 
-  // ✅ DUMMY: Start Task (No API call)
-  const handleStartTask = (taskId: string) => {
-    console.log("🚀 DUMMY: Starting task", taskId);
+  // ✅ REAL: Start Task
+  const handleStartTask = async (taskId: string) => {
+    try {
+      const response = await fetch(`http://localhost:3007/api/tasks/${taskId}/status`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          status: "in_progress",
+        }),
+      });
 
-    // Update local state only
-    setTasks((prevTasks) => prevTasks.map((task) => (task.id === taskId ? { ...task, status: "in_progress" as const } : task)));
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to start task");
+      }
 
-    toast.success("Task started! Good luck! 🚀 (DUMMY)");
+      const data = await response.json();
+
+      // Update local state with the updated task
+      setTasks((prevTasks) =>
+        prevTasks.map((task) =>
+          task.id === taskId ? { ...task, status: data.task.status } : task
+        )
+      );
+
+      toast.success("Task started successfully! 🚀");
+    } catch (error: any) {
+      console.error("Failed to start task:", error);
+      toast.error(error.message || "Failed to start task");
+    }
   };
 
   // ✅ DUMMY: Open modal
   const handleCompleteClick = (task: Task) => {
     setSelectedTask(task);
-    setCompletionNotes("");
+    setCompletionNotes(task.completionNotes || "");
+    setJobResult(task.jobResult || []);
     setShowCompleteModal(true);
   };
 
-  // ✅ DUMMY: Submit completion (No API call)
-  const handleSubmitCompletion = () => {
+  // Open task detail modal
+  const handleViewDetails = (task: Task) => {
+    setSelectedTask(task);
+    setShowDetailModal(true);
+  };
+
+  // Add result link
+  const handleAddLink = () => {
+    if (newLink.trim() && !jobResult.includes(newLink.trim())) {
+      setJobResult([...jobResult, newLink.trim()]);
+      setNewLink("");
+    }
+  };
+
+  // Remove result link
+  const handleRemoveLink = (index: number) => {
+    setJobResult(jobResult.filter((_, i) => i !== index));
+  };
+
+  // ✅ REAL: Submit completion
+  const handleSubmitCompletion = async () => {
     if (!selectedTask) return;
 
     if (!completionNotes.trim()) {
@@ -120,20 +170,45 @@ export default function StaffPage() {
       return;
     }
 
-    // DUMMY: Console log only
-    console.log("📝 DUMMY SUBMISSION:");
-    console.log("Task ID:", selectedTask.id);
-    console.log("Task Title:", selectedTask.title);
-    console.log("Completion Notes:", completionNotes.trim());
+    try {
+      const response = await fetch(`http://localhost:3007/api/tasks/${selectedTask.id}/status`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          status: "pending_review",
+          completionNotes: completionNotes.trim(),
+          jobResult: jobResult,
+        }),
+      });
 
-    // Update local state only
-    setTasks((prevTasks) => prevTasks.map((task) => (task.id === selectedTask.id ? { ...task, status: "completed" as const, completionNotes: completionNotes.trim() } : task)));
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to submit task for review");
+      }
 
-    toast.success("✅ Task marked as complete! (DUMMY)");
+      const data = await response.json();
 
-    setShowCompleteModal(false);
-    setSelectedTask(null);
-    setCompletionNotes("");
+      // Update local state with updated task
+      setTasks((prevTasks) =>
+        prevTasks.map((task) =>
+          task.id === selectedTask.id
+            ? { ...task, status: data.task.status, completionNotes: completionNotes.trim() }
+            : task
+        )
+      );
+
+      toast.success("✅ Task submitted for review! Your manager will review it soon.");
+
+      setShowCompleteModal(false);
+      setSelectedTask(null);
+      setCompletionNotes("");
+    } catch (error: any) {
+      console.error("Failed to submit task:", error);
+      toast.error(error.message || "Failed to submit task for review");
+    }
   };
 
   const handleLogout = async () => {
@@ -163,7 +238,8 @@ export default function StaffPage() {
     if (status === "completed") return "text-gray-500";
 
     const daysLeft = getDaysUntilDue(dueDate);
-    if (daysLeft < 0) return "text-red-600 font-semibold";
+    if (daysLeft < 0) return "text-red-600 font-semibold bg-red-50 px-2 py-1 rounded";
+    if (daysLeft === 0) return "text-orange-600 font-semibold bg-orange-50 px-2 py-1 rounded";
     if (daysLeft <= 2) return "text-orange-600 font-semibold";
     return "text-gray-600";
   };
@@ -173,7 +249,7 @@ export default function StaffPage() {
 
     const daysLeft = getDaysUntilDue(dueDate);
     if (daysLeft < 0) return `Overdue by ${Math.abs(daysLeft)} day${Math.abs(daysLeft) > 1 ? "s" : ""}`;
-    if (daysLeft === 0) return "Due today!";
+    if (daysLeft === 0) return "Due today";
     if (daysLeft === 1) return "Due tomorrow";
     if (daysLeft <= 7) return `${daysLeft} days left`;
     return new Date(dueDate).toLocaleDateString();
@@ -231,6 +307,19 @@ export default function StaffPage() {
           <h2 className="text-3xl font-bold text-gray-900 mb-2">Welcome back, {user?.name}! 👋</h2>
           <p className="text-gray-600">Here are your assigned tasks</p>
         </div>
+
+        {/* Overdue Tasks Warning */}
+        {tasks.some(task => task.status !== "completed" && getDaysUntilDue(task.dueDate) < 0) && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="h-5 w-5 text-red-600" />
+              <div>
+                <p className="text-red-800 font-semibold">You have overdue tasks</p>
+                <p className="text-red-600 text-sm">Please complete these tasks as soon as possible or contact your manager if you need an extension.</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
@@ -295,17 +384,28 @@ export default function StaffPage() {
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {pendingTasks.map((task) => (
-                    <Card key={task.id} className="hover:shadow-lg transition-shadow border-l-4 border-l-yellow-500">
+                    <Card key={task.id} className={`hover:shadow-lg transition-shadow border-l-4 ${
+                      getDaysUntilDue(task.dueDate) < 0
+                        ? "border-l-red-500 bg-red-50/50"
+                        : "border-l-yellow-500"
+                    }`}>
                       <CardHeader>
                         <div className="flex items-start justify-between mb-2">
                           <CardTitle className="text-lg">{task.title}</CardTitle>
-                          <span
-                            className={`px-2 py-1 text-xs rounded-full whitespace-nowrap ${
-                              task.priority === "high" ? "bg-red-100 text-red-800" : task.priority === "medium" ? "bg-yellow-100 text-yellow-800" : "bg-gray-100 text-gray-800"
-                            }`}
-                          >
-                            {task.priority}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            {getDaysUntilDue(task.dueDate) < 0 && (
+                              <span className="px-2 py-1 text-xs bg-red-100 text-red-800 rounded-full animate-pulse">
+                                Overdue
+                              </span>
+                            )}
+                            <span
+                              className={`px-2 py-1 text-xs rounded-full whitespace-nowrap ${
+                                task.priority === "high" ? "bg-red-100 text-red-800" : task.priority === "medium" ? "bg-yellow-100 text-yellow-800" : "bg-gray-100 text-gray-800"
+                              }`}
+                            >
+                              {task.priority}
+                            </span>
+                          </div>
                         </div>
                       </CardHeader>
                       <CardContent>
@@ -318,9 +418,14 @@ export default function StaffPage() {
                           </div>
                         </div>
 
-                        <Button className="w-full bg-blue-600 hover:bg-blue-700" onClick={() => handleStartTask(task.id)}>
-                          Start Task (DUMMY)
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button className="flex-1 bg-blue-600 hover:bg-blue-700" onClick={() => handleStartTask(task.id)}>
+                            Start Task
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => handleViewDetails(task)}>
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </CardContent>
                     </Card>
                   ))}
@@ -337,17 +442,28 @@ export default function StaffPage() {
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {inProgressTasks.map((task) => (
-                    <Card key={task.id} className="hover:shadow-lg transition-shadow border-l-4 border-l-blue-500">
+                    <Card key={task.id} className={`hover:shadow-lg transition-shadow border-l-4 ${
+                      getDaysUntilDue(task.dueDate) < 0
+                        ? "border-l-red-500 bg-red-50/50"
+                        : "border-l-blue-500"
+                    }`}>
                       <CardHeader>
                         <div className="flex items-start justify-between mb-2">
                           <CardTitle className="text-lg">{task.title}</CardTitle>
-                          <span
-                            className={`px-2 py-1 text-xs rounded-full whitespace-nowrap ${
-                              task.priority === "high" ? "bg-red-100 text-red-800" : task.priority === "medium" ? "bg-yellow-100 text-yellow-800" : "bg-gray-100 text-gray-800"
-                            }`}
-                          >
-                            {task.priority}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            {getDaysUntilDue(task.dueDate) < 0 && (
+                              <span className="px-2 py-1 text-xs bg-red-100 text-red-800 rounded-full animate-pulse">
+                                Overdue
+                              </span>
+                            )}
+                            <span
+                              className={`px-2 py-1 text-xs rounded-full whitespace-nowrap ${
+                                task.priority === "high" ? "bg-red-100 text-red-800" : task.priority === "medium" ? "bg-yellow-100 text-yellow-800" : "bg-gray-100 text-gray-800"
+                              }`}
+                            >
+                              {task.priority}
+                            </span>
+                          </div>
                         </div>
                       </CardHeader>
                       <CardContent>
@@ -360,9 +476,14 @@ export default function StaffPage() {
                           </div>
                         </div>
 
-                        <Button className="w-full bg-green-600 hover:bg-green-700" onClick={() => handleCompleteClick(task)}>
-                          Mark as Done
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button className="flex-1 bg-green-600 hover:bg-green-700" onClick={() => handleCompleteClick(task)}>
+                            Mark as Done
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => handleViewDetails(task)}>
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </CardContent>
                     </Card>
                   ))}
@@ -423,7 +544,7 @@ export default function StaffPage() {
             {/* Header */}
             <div className="flex items-center justify-between p-6 border-b">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">Complete Task</h3>
+                <h3 className="text-lg font-semibold text-gray-900">Submit Task for Review</h3>
                 <p className="text-sm text-gray-500 mt-1">What did you accomplish?</p>
               </div>
               <button onClick={() => setShowCompleteModal(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
@@ -448,10 +569,54 @@ export default function StaffPage() {
                   placeholder="Example: Completed the login page with email validation. Added forgot password feature. Tested on Chrome and Firefox..."
                   value={completionNotes}
                   onChange={(e) => setCompletionNotes(e.target.value)}
-                  rows={5}
+                  rows={4}
                   className="resize-none"
                 />
                 <p className="text-xs text-gray-500">Minimum 10 characters • {completionNotes.length} characters</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Result Links (Optional)</Label>
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="https://example.com/result"
+                      value={newLink}
+                      onChange={(e) => setNewLink(e.target.value)}
+                      onKeyPress={(e) => e.key === "Enter" && (e.preventDefault(), handleAddLink())}
+                    />
+                    <Button type="button" variant="outline" onClick={handleAddLink}>
+                      Add
+                    </Button>
+                  </div>
+                  {jobResult.length > 0 && (
+                    <div className="space-y-1">
+                      {jobResult.map((link, index) => (
+                        <div key={index} className="flex items-center gap-2 p-2 bg-gray-50 rounded">
+                          <ExternalLink className="h-3 w-3 text-gray-400" />
+                          <a
+                            href={link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm text-blue-600 hover:underline flex-1 truncate"
+                          >
+                            {link}
+                          </a>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleRemoveLink(index)}
+                            className="text-red-500 hover:text-red-700"
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500">Add links to your work results (GitHub, demo, etc.)</p>
               </div>
             </div>
 
@@ -461,8 +626,133 @@ export default function StaffPage() {
                 Cancel
               </Button>
               <Button onClick={handleSubmitCompletion} disabled={completionNotes.trim().length < 10} className="flex-1 bg-green-600 hover:bg-green-700">
-                Submit & Complete (DUMMY)
+                Submit for Review
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Task Detail Modal */}
+      {showDetailModal && selectedTask && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b sticky top-0 bg-white">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Task Details</h3>
+                <p className="text-sm text-gray-500 mt-1">View task information and progress</p>
+              </div>
+              <button onClick={() => setShowDetailModal(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-6">
+              {/* Task Info */}
+              <div>
+                <h4 className="font-semibold text-gray-900 mb-3">Task Information</h4>
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-sm font-medium text-gray-700">Title</p>
+                    <p className="text-gray-900">{selectedTask.title}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-700">Description</p>
+                    <p className="text-gray-900">{selectedTask.description}</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-gray-700">Priority</p>
+                      <span
+                        className={`inline-block px-2 py-1 text-xs rounded-full ${
+                          selectedTask.priority === "high" ? "bg-red-100 text-red-800" : selectedTask.priority === "medium" ? "bg-yellow-100 text-yellow-800" : "bg-gray-100 text-gray-800"
+                        }`}
+                      >
+                        {selectedTask.priority}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-700">Status</p>
+                      <span
+                        className={`inline-block px-2 py-1 text-xs rounded-full ${
+                          selectedTask.status === "pending" ? "bg-yellow-100 text-yellow-800" : selectedTask.status === "in_progress" ? "bg-blue-100 text-blue-800" : "bg-green-100 text-green-800"
+                        }`}
+                      >
+                        {selectedTask.status === "pending" ? "Pending" : selectedTask.status === "in_progress" ? "In Progress" : "Completed"}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-gray-700">Due Date</p>
+                      <p className={getDueDateColor(selectedTask.dueDate, selectedTask.status)}>
+                        {getDueDateText(selectedTask.dueDate, selectedTask.status)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-700">Created</p>
+                      <p className="text-gray-900">{new Date(selectedTask.createdAt).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Completion Notes */}
+              {selectedTask.completionNotes && (
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-3">Completion Notes</h4>
+                  <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                    <p className="text-sm text-green-800">{selectedTask.completionNotes}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Job Result Links */}
+              {selectedTask.jobResult && selectedTask.jobResult.length > 0 && (
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-3">Job Result Links</h4>
+                  <div className="space-y-2">
+                    {selectedTask.jobResult.map((link, index) => (
+                      <div key={index} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border">
+                        <ExternalLink className="h-4 w-4 text-gray-400" />
+                        <a
+                          href={link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-blue-600 hover:underline flex-1"
+                        >
+                          {link}
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="flex gap-3 p-6 border-t bg-gray-50 rounded-b-lg">
+              <Button variant="outline" onClick={() => setShowDetailModal(false)} className="flex-1">
+                Close
+              </Button>
+              {selectedTask.status === "pending" && (
+                <Button className="flex-1 bg-blue-600 hover:bg-blue-700" onClick={() => {
+                  setShowDetailModal(false);
+                  handleStartTask(selectedTask.id);
+                }}>
+                  Start Task
+                </Button>
+              )}
+              {selectedTask.status === "in_progress" && (
+                <Button className="flex-1 bg-green-600 hover:bg-green-700" onClick={() => {
+                  setShowDetailModal(false);
+                  handleCompleteClick(selectedTask);
+                }}>
+                  Mark as Done
+                </Button>
+              )}
             </div>
           </div>
         </div>

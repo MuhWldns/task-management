@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Users, CheckSquare, LogOut, User, Plus, Clock, AlertCircle, CheckCircle2, TrendingUp } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { Users, CheckSquare, LogOut, User, Plus, Clock, AlertCircle, CheckCircle2, TrendingUp, X, ThumbsUp, ThumbsDown, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 
 interface User {
@@ -31,6 +32,9 @@ interface Task {
   status: "pending" | "in_progress" | "completed";
   priority: "low" | "medium" | "high";
   dueDate: string;
+  completedAt?: string;
+  completionNotes?: string;
+  jobResult?: string[];
   assignedTo?: {
     id: string;
     name: string;
@@ -44,9 +48,17 @@ export default function ManagerPage() {
   const [user, setUser] = useState<User | null>(null);
   const [staffList, setStaffList] = useState<Staff[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [pendingReviewTasks, setPendingReviewTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isFetchingData, setIsFetchingData] = useState(false);
   const [showCreateStaff, setShowCreateStaff] = useState(false);
+
+  // Review modal state
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [reviewAction, setReviewAction] = useState<"approve" | "reject" | null>(null);
+  const [reviewNotes, setReviewNotes] = useState("");
+  const [isReviewing, setIsReviewing] = useState(false);
 
   // Create staff form
   const [staffName, setStaffName] = useState("");
@@ -102,11 +114,14 @@ export default function ManagerPage() {
 
     try {
       // Parallel fetch untuk performance
-      const [staffResponse, tasksResponse] = await Promise.all([
+      const [staffResponse, tasksResponse, pendingReviewResponse] = await Promise.all([
         fetch("http://localhost:3007/api/users/staff", {
           credentials: "include",
         }),
         fetch("http://localhost:3007/api/tasks", {
+          credentials: "include",
+        }),
+        fetch("http://localhost:3007/api/tasks/pending-review", {
           credentials: "include",
         }),
       ]);
@@ -127,6 +142,15 @@ export default function ManagerPage() {
       } else {
         console.error("Failed to fetch tasks:", await tasksResponse.text());
         toast.error("Failed to load tasks");
+      }
+
+      // ✅ Handle pending review response
+      if (pendingReviewResponse.ok) {
+        const pendingReviewData = await pendingReviewResponse.json();
+        setPendingReviewTasks(pendingReviewData.tasks || []);
+      } else {
+        console.error("Failed to fetch pending review tasks:", await pendingReviewResponse.text());
+        // Don't show error toast for this as it might be empty
       }
     } catch (error) {
       console.error("Failed to fetch data:", error);
@@ -189,6 +213,61 @@ export default function ManagerPage() {
       toast.error(error.message || "Failed to create staff");
     } finally {
       setIsCreating(false);
+    }
+  };
+
+  // Handle review task
+  const handleReviewClick = (task: Task) => {
+    setSelectedTask(task);
+    setReviewAction(null);
+    setReviewNotes("");
+    setShowReviewModal(true);
+  };
+
+  const handleReviewSubmit = async () => {
+    if (!selectedTask || !reviewAction) return;
+
+    setIsReviewing(true);
+
+    try {
+      const response = await fetch(`http://localhost:3007/api/tasks/${selectedTask.id}/review`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          action: reviewAction,
+          reviewNotes: reviewNotes.trim() || undefined,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to review task");
+      }
+
+      const data = await response.json();
+
+      // Update local state - remove from pending review and update in tasks
+      setPendingReviewTasks((prev) => prev.filter((task) => task.id !== selectedTask.id));
+      setTasks((prev) =>
+        prev.map((task) =>
+          task.id === selectedTask.id ? { ...task, status: data.task.status } : task
+        )
+      );
+
+      toast.success(`Task ${reviewAction === "approve" ? "approved" : "rejected"} successfully!`);
+
+      setShowReviewModal(false);
+      setSelectedTask(null);
+      setReviewAction(null);
+      setReviewNotes("");
+    } catch (error: any) {
+      console.error("Failed to review task:", error);
+      toast.error(error.message || "Failed to review task");
+    } finally {
+      setIsReviewing(false);
     }
   };
 
@@ -299,7 +378,7 @@ export default function ManagerPage() {
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
           <Card>
             <CardHeader className="pb-3">
               <CardDescription className="flex items-center gap-2">
@@ -333,6 +412,16 @@ export default function ManagerPage() {
           <Card>
             <CardHeader className="pb-3">
               <CardDescription className="flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-orange-600" />
+                Pending Review
+              </CardDescription>
+              <CardTitle className="text-3xl text-orange-600">{pendingReviewTasks.length}</CardTitle>
+            </CardHeader>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardDescription className="flex items-center gap-2">
                 <TrendingUp className="h-4 w-4" />
                 Completed
               </CardDescription>
@@ -341,7 +430,7 @@ export default function ManagerPage() {
           </Card>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Staff Section */}
           <div>
             <div className="flex items-center justify-between mb-4">
@@ -435,6 +524,76 @@ export default function ManagerPage() {
             )}
           </div>
 
+          {/* Pending Review Section */}
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-2xl font-bold text-gray-900">Pending Review</h3>
+              {pendingReviewTasks.length > 0 && (
+                <span className="px-2 py-1 text-xs bg-orange-100 text-orange-800 rounded-full">
+                  {pendingReviewTasks.length} need review
+                </span>
+              )}
+            </div>
+
+            {pendingReviewTasks.length === 0 ? (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <p className="text-gray-500">No tasks pending review</p>
+                  <p className="text-sm text-gray-400 mt-2">Staff will submit tasks for your review here</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-4">
+                {pendingReviewTasks.map((task) => (
+                  <Card key={task.id} className="border-l-4 border-l-orange-500">
+                    <CardContent className="py-4">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start gap-3 flex-1">
+                          <AlertCircle className="h-4 w-4 text-orange-500 mt-1" />
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-gray-900">{task.title}</h4>
+                            <p className="text-sm text-gray-500 mt-1 line-clamp-2">{task.description}</p>
+                            {task.assignedTo && (
+                              <p className="text-xs text-gray-400 mt-2">Submitted by: {task.assignedTo.name}</p>
+                            )}
+                            {task.completedAt && (
+                              <p className="text-xs text-gray-400 mt-1">
+                                Completed: {new Date(task.completedAt).toLocaleDateString()}
+                              </p>
+                            )}
+                            {task.completionNotes && (
+                              <p className="text-xs text-gray-400 mt-1">
+                                Notes: {task.completionNotes.substring(0, 50)}{task.completionNotes.length > 50 ? "..." : ""}
+                              </p>
+                            )}
+                            {task.jobResult && task.jobResult.length > 0 && (
+                              <p className="text-xs text-gray-400 mt-1">
+                                Results: {task.jobResult.length} link{task.jobResult.length > 1 ? "s" : ""}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end gap-2">
+                          <span
+                            className={`px-2 py-1 text-xs rounded-full whitespace-nowrap ${
+                              task.priority === "high" ? "bg-red-100 text-red-800" : task.priority === "medium" ? "bg-yellow-100 text-yellow-800" : "bg-gray-100 text-gray-800"
+                            }`}
+                          >
+                            {task.priority}
+                          </span>
+                          <Button size="sm" onClick={() => handleReviewClick(task)}>
+                            Review
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* Recent Tasks Section */}
           <div>
             <div className="flex items-center justify-between mb-4">
@@ -489,6 +648,136 @@ export default function ManagerPage() {
           </div>
         </div>
       </main>
+
+      {/* Review Modal */}
+      {showReviewModal && selectedTask && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Review Task</h3>
+                <p className="text-sm text-gray-500 mt-1">Approve or reject this task submission</p>
+              </div>
+              <button onClick={() => setShowReviewModal(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-4">
+              <div>
+                <p className="text-sm font-medium text-gray-700 mb-2">
+                  Task: <span className="text-blue-600">{selectedTask.title}</span>
+                </p>
+                {selectedTask.assignedTo && (
+                  <p className="text-sm text-gray-600">
+                    Submitted by: <span className="font-medium">{selectedTask.assignedTo.name}</span>
+                  </p>
+                )}
+                {selectedTask.completedAt && (
+                  <p className="text-sm text-gray-600">
+                    Completed: <span className="font-medium">{new Date(selectedTask.completedAt).toLocaleDateString()}</span>
+                  </p>
+                )}
+              </div>
+
+              {/* Show completion notes if available */}
+              {selectedTask.completionNotes && (
+                <div className="space-y-2">
+                  <Label>Staff Completion Notes</Label>
+                  <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+                    <p className="text-sm text-green-800">{selectedTask.completionNotes}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Show job result links if available */}
+              {selectedTask.jobResult && selectedTask.jobResult.length > 0 && (
+                <div className="space-y-2">
+                  <Label>Job Result Links</Label>
+                  <div className="space-y-1">
+                    {selectedTask.jobResult.map((link, index) => (
+                      <div key={index} className="flex items-center gap-2 p-2 bg-gray-50 rounded">
+                        <ExternalLink className="h-3 w-3 text-gray-400" />
+                        <a
+                          href={link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-blue-600 hover:underline flex-1 truncate"
+                        >
+                          {link}
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label>Review Action</Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <Button
+                    type="button"
+                    variant={reviewAction === "approve" ? "default" : "outline"}
+                    className={`flex items-center gap-2 ${
+                      reviewAction === "approve" ? "bg-green-600 hover:bg-green-700" : ""
+                    }`}
+                    onClick={() => setReviewAction("approve")}
+                  >
+                    <ThumbsUp className="h-4 w-4" />
+                    Approve
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={reviewAction === "reject" ? "default" : "outline"}
+                    className={`flex items-center gap-2 ${
+                      reviewAction === "reject" ? "bg-red-600 hover:bg-red-700" : ""
+                    }`}
+                    onClick={() => setReviewAction("reject")}
+                  >
+                    <ThumbsDown className="h-4 w-4" />
+                    Reject
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="reviewNotes">Review Notes (Optional)</Label>
+                <Textarea
+                  id="reviewNotes"
+                  placeholder={
+                    reviewAction === "approve"
+                      ? "Great work! Add any feedback or comments..."
+                      : "Please explain why this task is being rejected..."
+                  }
+                  value={reviewNotes}
+                  onChange={(e) => setReviewNotes(e.target.value)}
+                  rows={4}
+                  className="resize-none"
+                />
+                <p className="text-xs text-gray-500">{reviewNotes.length} characters</p>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex gap-3 p-6 border-t bg-gray-50 rounded-b-lg">
+              <Button variant="outline" onClick={() => setShowReviewModal(false)} className="flex-1" disabled={isReviewing}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleReviewSubmit}
+                disabled={!reviewAction || isReviewing}
+                className={`flex-1 ${
+                  reviewAction === "approve" ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"
+                }`}
+              >
+                {isReviewing ? "Processing..." : reviewAction === "approve" ? "Approve Task" : "Reject Task"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

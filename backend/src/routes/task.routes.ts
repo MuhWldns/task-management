@@ -3,6 +3,7 @@ import { prisma } from "../../db/prisma"; // ✅ Fix path
 import { TaskPriority, TaskStatus } from "@prisma/client";
 import { authenticate } from "../middlewares/auth.middleware";
 import { AuthRequest } from "../types"; // ✅ Import AuthRequest type
+import { updateTaskStatus, getPendingReviewTasks, reviewTask } from "../controllers/task.controller";
 
 const router = express.Router();
 
@@ -122,6 +123,7 @@ router.get("/", authenticate, async (req: AuthRequest, res) => {
     const tasks = await prisma.task.findMany({
       where: {
         createdById: userId,
+        deletedAt: null,
       },
       include: {
         assignedTo: {
@@ -145,6 +147,9 @@ router.get("/", authenticate, async (req: AuthRequest, res) => {
       priority: task.priority,
       status: mapStatusToFrontend(task.status),
       dueDate: task.deadline,
+      completedAt: task.completedAt,
+      completionNotes: task.completionNotes,
+      jobResult: task.jobResult,
       assignedTo: task.assignedToId,
       createdAt: task.createdAt,
     }));
@@ -175,6 +180,7 @@ router.get("/my-tasks", authenticate, async (req: AuthRequest, res) => {
     const tasks = await prisma.task.findMany({
       where: {
         assignedToId: userId,
+        deletedAt: null,
       },
       orderBy: {
         createdAt: "desc",
@@ -198,6 +204,15 @@ router.get("/my-tasks", authenticate, async (req: AuthRequest, res) => {
     return res.status(500).json({ error: "Failed to fetch tasks" }); // ✅ Add return
   }
 });
+
+// ✅ 4. Update task status (PUT /api/tasks/:id/status)
+router.put("/:id/status", authenticate, updateTaskStatus);
+
+// ✅ 5. Get pending review tasks (GET /api/tasks/pending-review)
+router.get("/pending-review", authenticate, getPendingReviewTasks);
+
+// ✅ 6. Review task (PUT /api/tasks/:id/review)
+router.put("/:id/review", authenticate, reviewTask);
 
 // ✅ Helper: Map backend status to frontend status
 function mapStatusToFrontend(status: TaskStatus): string {

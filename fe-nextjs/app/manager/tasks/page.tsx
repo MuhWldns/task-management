@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CheckSquare, LogOut, User, Plus, ArrowLeft, Calendar, AlertCircle, Clock, CheckCircle2, Filter, Search } from "lucide-react";
+import { CheckSquare, LogOut, User, Plus, ArrowLeft, Calendar, AlertCircle, Clock, CheckCircle2, Filter, Search, Eye, ExternalLink, X } from "lucide-react";
 import { toast } from "sonner";
 
 interface User {
@@ -30,6 +30,9 @@ interface Task {
   status: "pending" | "in_progress" | "completed";
   priority: "low" | "medium" | "high";
   dueDate: string;
+  completedAt?: string;
+  completionNotes?: string;
+  jobResult?: string[];
   assignedTo: Staff;
   createdAt: string;
 }
@@ -54,6 +57,10 @@ export default function TaskManagementPage() {
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [filterPriority, setFilterPriority] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Modal state
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
   useEffect(() => {
     verifyAccess();
@@ -102,7 +109,7 @@ export default function TaskManagementPage() {
         credentials: "include",
       });
       const tasksData = await tasksResponse.json();
-      setTasks(tasksData.tasks || []); // ✅ Set tasks
+      setTasks(tasksData.tasks || []); // ✅ Set tasks with completionNotes and jobResult
 
       // ❌ HAPUS 2 LINE INI!
       // setStaffList([]);
@@ -158,6 +165,12 @@ export default function TaskManagementPage() {
     } finally {
       setIsCreating(false);
     }
+  };
+
+  // Handle view task details
+  const handleViewDetails = (task: Task) => {
+    setSelectedTask(task);
+    setShowDetailModal(true);
   };
 
   const handleLogout = async () => {
@@ -538,7 +551,8 @@ export default function TaskManagementPage() {
                       </span>
                     </div>
                     <div className="flex gap-2">
-                      <Button variant="outline" size="sm">
+                      <Button variant="outline" size="sm" onClick={() => handleViewDetails(task)}>
+                        <Eye className="h-4 w-4 mr-2" />
                         View Details
                       </Button>
                       <Button variant="outline" size="sm">
@@ -552,6 +566,134 @@ export default function TaskManagementPage() {
           </div>
         )}
       </main>
+
+      {/* Task Detail Modal */}
+      {showDetailModal && selectedTask && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b sticky top-0 bg-white">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Task Details</h3>
+                <p className="text-sm text-gray-500 mt-1">View task information and progress</p>
+              </div>
+              <button onClick={() => setShowDetailModal(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 space-y-6">
+              {/* Task Info */}
+              <div>
+                <h4 className="font-semibold text-gray-900 mb-3">Task Information</h4>
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-sm font-medium text-gray-700">Title</p>
+                    <p className="text-gray-900">{selectedTask.title}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-700">Description</p>
+                    <p className="text-gray-900">{selectedTask.description}</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-gray-700">Priority</p>
+                      <span
+                        className={`inline-block px-2 py-1 text-xs rounded-full ${
+                          selectedTask.priority === "high" ? "bg-red-100 text-red-800" : selectedTask.priority === "medium" ? "bg-yellow-100 text-yellow-800" : "bg-gray-100 text-gray-800"
+                        }`}
+                      >
+                        {selectedTask.priority}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-700">Status</p>
+                      <span
+                        className={`inline-block px-2 py-1 text-xs rounded-full ${
+                          selectedTask.status === "pending" ? "bg-yellow-100 text-yellow-800" : selectedTask.status === "in_progress" ? "bg-blue-100 text-blue-800" : "bg-green-100 text-green-800"
+                        }`}
+                      >
+                        {selectedTask.status === "pending" ? "Pending" : selectedTask.status === "in_progress" ? "In Progress" : "Completed"}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-gray-700">Due Date</p>
+                      <p className="text-gray-900">{new Date(selectedTask.dueDate).toLocaleDateString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-700">Created</p>
+                      <p className="text-gray-900">{new Date(selectedTask.createdAt).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-gray-700">Assigned To</p>
+                      <p className="text-gray-900">{selectedTask.assignedTo.name}</p>
+                      <p className="text-sm text-gray-500">{selectedTask.assignedTo.email}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-700">Completed At</p>
+                      <p className="text-gray-900">{selectedTask.completedAt ? new Date(selectedTask.completedAt).toLocaleDateString() : "Not completed"}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Completion Notes */}
+              {selectedTask.completionNotes && (
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-3">Staff Completion Notes</h4>
+                  <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                    <p className="text-sm text-green-800">{selectedTask.completionNotes}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Job Result Links */}
+              {selectedTask.jobResult && selectedTask.jobResult.length > 0 && (
+                <div>
+                  <h4 className="font-semibold text-gray-900 mb-3">Job Result Links</h4>
+                  <div className="space-y-2">
+                    {selectedTask.jobResult.map((link, index) => (
+                      <div key={index} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border">
+                        <ExternalLink className="h-4 w-4 text-gray-400" />
+                        <a
+                          href={link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-blue-600 hover:underline flex-1"
+                        >
+                          {link}
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="flex gap-3 p-6 border-t bg-gray-50 rounded-b-lg">
+              <Button variant="outline" onClick={() => setShowDetailModal(false)} className="flex-1">
+                Close
+              </Button>
+              {selectedTask.status === "pending" && (
+                <Button className="flex-1 bg-blue-600 hover:bg-blue-700">
+                  Edit Task
+                </Button>
+              )}
+              {selectedTask.status === "in_progress" && (
+                <Button className="flex-1 bg-orange-600 hover:bg-orange-700">
+                  Send Reminder
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

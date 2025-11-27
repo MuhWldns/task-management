@@ -47,7 +47,7 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
       where: { id: decoded.userId },
     });
 
-    if (!user) {
+    if (!user || user.deletedAt) {
       return res.status(401).json({ error: "User not found" });
     }
 

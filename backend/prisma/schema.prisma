@@ -24,6 +24,7 @@ model User {
   isVerified Boolean @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  deletedAt DateTime?
 
   // Self-relation for manager-staff relationship
   managerId String?
@@ -59,8 +60,12 @@ model Task {
   priority    TaskPriority
   status      TaskStatus   @default(todo)
   deadline    DateTime?
+  completedAt DateTime?
+  completionNotes String?
+  jobResult   String[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
+  deletedAt   DateTime?
 
   // Relations
   createdById String
@@ -77,6 +82,7 @@ model Comment {
   message   String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  deletedAt DateTime?
 
   // Relations
   taskId    String
@@ -91,6 +97,7 @@ model ActivityLog {
   oldValue  String?
   newValue  String?
   createdAt DateTime @default(now())
+  deletedAt DateTime?
 
   // Relations
   taskId    String?
