@@ -1,6 +1,6 @@
 # 📋 Task Management System
 
-A comprehensive task management application with role-based access control (Admin, Manager, Staff) built with modern web technologies.
+A comprehensive task management application with role-based access control (Admin, Manager, Staff) built with modern web technologies. Features soft delete functionality and comprehensive task workflow management.
 
 ---
 

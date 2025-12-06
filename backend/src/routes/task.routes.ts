@@ -16,7 +16,7 @@ router.post("/", authenticate, async (req: AuthRequest, res) => {
 
     // Check if user is manager
     const manager = await prisma.user.findUnique({
-      where: { id: managerId },
+      where: { id: managerId, deletedAt: null },
     });
 
     if (!manager || manager.role !== "manager") {
@@ -48,7 +48,7 @@ router.post("/", authenticate, async (req: AuthRequest, res) => {
 
     // Check if assigned user exists and is staff
     const assignedUser = await prisma.user.findUnique({
-      where: { id: assignedToId },
+      where: { id: assignedToId, deletedAt: null },
     });
 
     if (!assignedUser || assignedUser.role !== "staff") {
@@ -112,7 +112,7 @@ router.get("/", authenticate, async (req: AuthRequest, res) => {
 
     // Check if user is manager
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: userId, deletedAt: null },
     });
 
     if (!user || user.role !== "manager") {
@@ -169,7 +169,7 @@ router.get("/my-tasks", authenticate, async (req: AuthRequest, res) => {
 
     // Check if user is staff
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: userId, deletedAt: null },
     });
 
     if (!user || user.role !== "staff") {

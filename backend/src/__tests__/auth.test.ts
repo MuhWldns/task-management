@@ -192,7 +192,7 @@ describe("Authentication Endpoints", () => {
 
       // Check if user is verified
       const user = await prisma.user.findUnique({
-        where: { id: userId },
+        where: { id: userId, deletedAt: null },
       });
       expect(user?.isVerified).toBe(true);
     });

@@ -251,11 +251,7 @@ export default function ManagerPage() {
 
       // Update local state - remove from pending review and update in tasks
       setPendingReviewTasks((prev) => prev.filter((task) => task.id !== selectedTask.id));
-      setTasks((prev) =>
-        prev.map((task) =>
-          task.id === selectedTask.id ? { ...task, status: data.task.status } : task
-        )
-      );
+      setTasks((prev) => prev.map((task) => (task.id === selectedTask.id ? { ...task, status: data.task.status } : task)));
 
       toast.success(`Task ${reviewAction === "approve" ? "approved" : "rejected"} successfully!`);
 
@@ -435,13 +431,13 @@ export default function ManagerPage() {
           <div>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-2xl font-bold text-gray-900">Staff Members</h3>
-              <Button onClick={() => setShowCreateStaff(!showCreateStaff)}>
+              {/* <Button onClick={() => setShowCreateStaff(!showCreateStaff)}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add Staff
-              </Button>
+              </Button> */}
             </div>
 
-            {showCreateStaff && (
+            {/* {showCreateStaff && (
               <Card className="mb-6">
                 <CardHeader>
                   <CardTitle>Create New Staff</CardTitle>
@@ -484,7 +480,7 @@ export default function ManagerPage() {
                   </form>
                 </CardContent>
               </Card>
-            )}
+            )} */}
 
             {staffList.length === 0 ? (
               <Card>
@@ -528,11 +524,7 @@ export default function ManagerPage() {
           <div>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-2xl font-bold text-gray-900">Pending Review</h3>
-              {pendingReviewTasks.length > 0 && (
-                <span className="px-2 py-1 text-xs bg-orange-100 text-orange-800 rounded-full">
-                  {pendingReviewTasks.length} need review
-                </span>
-              )}
+              {pendingReviewTasks.length > 0 && <span className="px-2 py-1 text-xs bg-orange-100 text-orange-800 rounded-full">{pendingReviewTasks.length} need review</span>}
             </div>
 
             {pendingReviewTasks.length === 0 ? (
@@ -554,17 +546,12 @@ export default function ManagerPage() {
                           <div className="flex-1">
                             <h4 className="font-semibold text-gray-900">{task.title}</h4>
                             <p className="text-sm text-gray-500 mt-1 line-clamp-2">{task.description}</p>
-                            {task.assignedTo && (
-                              <p className="text-xs text-gray-400 mt-2">Submitted by: {task.assignedTo.name}</p>
-                            )}
-                            {task.completedAt && (
-                              <p className="text-xs text-gray-400 mt-1">
-                                Completed: {new Date(task.completedAt).toLocaleDateString()}
-                              </p>
-                            )}
+                            {task.assignedTo && <p className="text-xs text-gray-400 mt-2">Submitted by: {task.assignedTo.name}</p>}
+                            {task.completedAt && <p className="text-xs text-gray-400 mt-1">Completed: {new Date(task.completedAt).toLocaleDateString()}</p>}
                             {task.completionNotes && (
                               <p className="text-xs text-gray-400 mt-1">
-                                Notes: {task.completionNotes.substring(0, 50)}{task.completionNotes.length > 50 ? "..." : ""}
+                                Notes: {task.completionNotes.substring(0, 50)}
+                                {task.completionNotes.length > 50 ? "..." : ""}
                               </p>
                             )}
                             {task.jobResult && task.jobResult.length > 0 && (
@@ -700,12 +687,7 @@ export default function ManagerPage() {
                     {selectedTask.jobResult.map((link, index) => (
                       <div key={index} className="flex items-center gap-2 p-2 bg-gray-50 rounded">
                         <ExternalLink className="h-3 w-3 text-gray-400" />
-                        <a
-                          href={link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm text-blue-600 hover:underline flex-1 truncate"
-                        >
+                        <a href={link} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline flex-1 truncate">
                           {link}
                         </a>
                       </div>
@@ -720,9 +702,7 @@ export default function ManagerPage() {
                   <Button
                     type="button"
                     variant={reviewAction === "approve" ? "default" : "outline"}
-                    className={`flex items-center gap-2 ${
-                      reviewAction === "approve" ? "bg-green-600 hover:bg-green-700" : ""
-                    }`}
+                    className={`flex items-center gap-2 ${reviewAction === "approve" ? "bg-green-600 hover:bg-green-700" : ""}`}
                     onClick={() => setReviewAction("approve")}
                   >
                     <ThumbsUp className="h-4 w-4" />
@@ -731,9 +711,7 @@ export default function ManagerPage() {
                   <Button
                     type="button"
                     variant={reviewAction === "reject" ? "default" : "outline"}
-                    className={`flex items-center gap-2 ${
-                      reviewAction === "reject" ? "bg-red-600 hover:bg-red-700" : ""
-                    }`}
+                    className={`flex items-center gap-2 ${reviewAction === "reject" ? "bg-red-600 hover:bg-red-700" : ""}`}
                     onClick={() => setReviewAction("reject")}
                   >
                     <ThumbsDown className="h-4 w-4" />
@@ -746,11 +724,7 @@ export default function ManagerPage() {
                 <Label htmlFor="reviewNotes">Review Notes (Optional)</Label>
                 <Textarea
                   id="reviewNotes"
-                  placeholder={
-                    reviewAction === "approve"
-                      ? "Great work! Add any feedback or comments..."
-                      : "Please explain why this task is being rejected..."
-                  }
+                  placeholder={reviewAction === "approve" ? "Great work! Add any feedback or comments..." : "Please explain why this task is being rejected..."}
                   value={reviewNotes}
                   onChange={(e) => setReviewNotes(e.target.value)}
                   rows={4}
@@ -768,9 +742,7 @@ export default function ManagerPage() {
               <Button
                 onClick={handleReviewSubmit}
                 disabled={!reviewAction || isReviewing}
-                className={`flex-1 ${
-                  reviewAction === "approve" ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"
-                }`}
+                className={`flex-1 ${reviewAction === "approve" ? "bg-green-600 hover:bg-green-700" : "bg-red-600 hover:bg-red-700"}`}
               >
                 {isReviewing ? "Processing..." : reviewAction === "approve" ? "Approve Task" : "Reject Task"}
               </Button>

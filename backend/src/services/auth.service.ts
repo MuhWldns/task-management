@@ -226,7 +226,7 @@ export const getStaffByManagerId = async (managerId: string): Promise<Omit<User,
 };
 export const login = async (data: LoginDTO): Promise<{ user: User; token: string }> => {
   const user = await prisma.user.findUnique({
-    where: { email: data.email },
+    where: { email: data.email, deletedAt: null },
   });
 
   if (!user || !user.passwordHash || user.deletedAt) {
@@ -250,7 +250,7 @@ export const login = async (data: LoginDTO): Promise<{ user: User; token: string
 export const createManager = async (data: { name: string; email: string; password: string }): Promise<User> => {
   // Check existing email (only active users)
   const existingUser = await prisma.user.findUnique({
-    where: { email: data.email },
+    where: { email: data.email, deletedAt: null },
   });
 
   if (existingUser && !existingUser.deletedAt) {
@@ -279,7 +279,7 @@ export const createManager = async (data: { name: string; email: string; passwor
 export const createStaffByAdmin = async (data: { name: string; email: string; password: string; managerId: string }): Promise<User> => {
   // Check existing email (only active users)
   const existingUser = await prisma.user.findUnique({
-    where: { email: data.email },
+    where: { email: data.email, deletedAt: null },
   });
 
   if (existingUser && !existingUser.deletedAt) {
@@ -319,7 +319,7 @@ export const createStaffByAdmin = async (data: { name: string; email: string; pa
 
 export const createUser = async (data: CreateUserDTO): Promise<User> => {
   const existingUser = await prisma.user.findUnique({
-    where: { email: data.email },
+    where: { email: data.email, deletedAt: null },
   });
 
   if (existingUser && !existingUser.deletedAt) {
