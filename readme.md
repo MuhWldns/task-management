@@ -352,7 +352,7 @@ graph TD
     A[User Registration] --> B[Send Verification Email]
     B --> C[Email with Verification Link]
     C --> D[User Clicks Link]
-    D --> E[/verify-email?token=xxx]
+    D --> E["/verify-email?token=xxx"]
     E --> F[Call Backend API]
     F --> G[Update isVerified: true]
     G --> H[Redirect to Login]
