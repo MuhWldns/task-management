@@ -50,22 +50,29 @@ task-management/
 │   ├── src/
 │   │   ├── controllers/
 │   │   │   ├── auth.controller.ts # Authentication logic
-│   │   │   └── admin.controller.ts # Admin operations
+│   │   │   ├── admin.controller.ts # Admin operations
+│   │   │   ├── task.controller.ts # Task CRUD operations
+│   │   │   └── verification.controller.ts # Email verification logic
 │   │   ├── middlewares/
-│   │   │   └── auth.middleware.ts # Auth & validation middleware
+│   │   │   ├── auth.middleware.ts # Auth & validation middleware
+│   │   │   └── verification.middleware.ts # Email verification middleware
 │   │   ├── routes/
 │   │   │   ├── auth.routes.ts     # Authentication routes
 │   │   │   ├── admin.routes.ts    # Admin routes
 │   │   │   ├── user.routes.ts     # User management routes
-│   │   │   └── task.routes.ts     # Task management routes
+│   │   │   ├── task.routes.ts     # Task management routes
+│   │   │   └── verification.routes.ts # Email verification routes
 │   │   ├── services/
 │   │   │   ├── auth.service.ts    # Business logic for auth
 │   │   │   ├── user.service.ts    # User management logic
-│   │   │   └── task.service.ts    # Task management logic
+│   │   │   ├── task.service.ts    # Task management logic
+│   │   │   └── verification.service.ts # Email verification service
 │   │   ├── types/
 │   │   │   └── index.ts           # TypeScript type definitions
 │   │   ├── utils/
-│   │   │   └── verifyTurnstile.ts # Captcha verification
+│   │   │   ├── verifyTurnstile.ts # Captcha verification
+│   │   │   ├── verificationToken.ts # Token generation & validation
+│   │   │   └── emailService.ts   # Email sending service
 │   │   └── index.ts               # Express server entry point
 │   ├── .env                       # Environment variables
 │   └── package.json
@@ -77,15 +84,25 @@ task-management/
     │   │   ├── SecretKeyForm.tsx  # Admin authentication
     │   │   └── page.tsx           # Admin page
     │   ├── manager/
-    │   │   └── page.tsx           # Manager dashboard
+    │   │   ├── page.tsx           # Manager dashboard
+    │   │   ├── tasks/
+    │   │   │   └── page.tsx       # Task management
+    │   │   └── staff/
+    │   │       └── page.tsx       # Staff management
     │   ├── staff/
     │   │   └── page.tsx           # Staff dashboard
     │   ├── login/
     │   │   └── page.tsx           # Login page
+    │   ├── please-verify/
+    │   │   └── page.tsx           # Email verification page
+    │   ├── verify-email/
+    │   │   └── page.tsx           # Email verification trigger
     │   ├── layout.tsx             # Root layout
     │   └── page.tsx               # Home page
     ├── components/
-    │   └── ui/                    # shadcn/ui components
+    │   ├── ui/                    # shadcn/ui components
+    │   ├── ProtectedRoute.tsx    # Route protection component
+    │   └── LoginButton.tsx        # Login button component
     ├── .env.local                 # Frontend environment variables
     └── package.json
 ```
@@ -137,6 +154,8 @@ interface User {
   passwordHash?: string   // Optional for OAuth
   role: 'manager' | 'staff'
   isVerified: boolean     // Default: false
+  verificationToken?: string    // Email verification token
+  verificationTokenExpires?: DateTime  // Token expiry
   managerId?: string      // Self-relation for manager-staff
   createdAt: DateTime
   updatedAt: DateTime
@@ -292,23 +311,53 @@ graph TD
     B --> C{Verify Credentials}
     C -->|Valid| D[JWT Token in Cookie]
     C -->|Invalid| B
-    D --> E[Redirect to /manager]
-    E --> F{Verify Role}
-    F -->|Manager| G[Manager Dashboard]
-    F -->|Not Manager| H[Redirect to /staff]
-    G --> I[View Staff List]
-    G --> J[Create/Manage Tasks]
-    I --> K[Only See Own Staff]
+    D --> E{Check Email Verification}
+    E -->|Verified| F[Redirect to /manager]
+    E -->|Not Verified| G[Redirect to /please-verify]
+    F --> H{Verify Role}
+    H -->|Manager| I[Manager Dashboard]
+    H -->|Not Manager| J[Redirect to /staff]
+    G --> K[Verification Page]
+    K --> L[Request New Email]
+    K --> M[Check Verification Status]
+    L --> N[Email Sent]
+    M --> O{Email Verified?}
+    O -->|Yes| F
+    O -->|No| K
+    I --> P[View Staff List]
+    I --> Q[Create/Manage Tasks]
+    P --> R[Only See Own Staff]
 ```
 
 **Steps**:
 
 1. Manager logs in with email/password + Turnstile captcha
 2. Backend validates credentials & issues JWT token (httpOnly cookie)
-3. Frontend redirects to `/manager`
-4. Verify role via `/api/auth/me` endpoint
-5. Load dashboard with staff & tasks
-6. Manager can only see staff with `managerId = manager.id`
+3. **Email Verification Check**:
+   - If verified → Redirect to `/manager`
+   - If not verified → Redirect to `/please-verify`
+4. **Verification Flow**:
+   - User can request new verification email
+   - User can check verification status
+   - Click email link → `/verify-email?token=xxx`
+   - Auto-verify → Redirect to login
+5. Verify role via `/api/auth/me` endpoint
+6. Load dashboard with staff & tasks
+7. Manager can only see staff with `managerId = manager.id`
+
+**Email Verification Process**:
+
+```mermaid
+graph TD
+    A[User Registration] --> B[Send Verification Email]
+    B --> C[Email with Verification Link]
+    C --> D[User Clicks Link]
+    D --> E[/verify-email?token=xxx]
+    E --> F[Call Backend API]
+    F --> G[Update isVerified: true]
+    G --> H[Redirect to Login]
+    H --> I[User Can Login Successfully]
+```
 
 ---
 
@@ -320,24 +369,40 @@ graph TD
     B --> C{Verify Credentials}
     C -->|Valid| D[JWT Token in Cookie]
     C -->|Invalid| B
-    D --> E[Redirect to /staff]
-    E --> F{Verify Role}
-    F -->|Staff| G[Staff Dashboard]
-    F -->|Not Staff| H[Redirect to /manager]
-    G --> I[View Assigned Tasks]
-    I --> J[Update Task Status]
-    J --> K[Add Completion Notes]
-    K --> L[Submit for Review]
+    D --> E{Check Email Verification}
+    E -->|Verified| F[Redirect to /staff]
+    E -->|Not Verified| G[Redirect to /please-verify]
+    F --> H{Verify Role}
+    H -->|Staff| I[Staff Dashboard]
+    H -->|Not Staff| J[Redirect to /manager]
+    G --> K[Verification Page]
+    K --> L[Request New Email]
+    K --> M[Check Verification Status]
+    L --> N[Email Sent]
+    M --> O{Email Verified?}
+    O -->|Yes| F
+    O -->|No| K
+    I --> P[View Assigned Tasks]
+    P --> Q[Update Task Status]
+    Q --> R[Add Completion Notes]
+    R --> S[Submit for Review]
 ```
 
 **Steps**:
 
 1. Staff logs in with email/password + Turnstile captcha
 2. Backend validates & issues JWT token
-3. Frontend redirects to `/staff`
-4. Verify role via `/api/auth/me`
-5. Load tasks where `assignedToId = staff.id`
-6. Update task status through the workflow:
+3. **Email Verification Check**:
+   - If verified → Redirect to `/staff`
+   - If not verified → Redirect to `/please-verify`
+4. **Verification Flow**:
+   - User can request new verification email
+   - User can check verification status
+   - Click email link → `/verify-email?token=xxx`
+   - Auto-verify → Redirect to login
+5. Verify role via `/api/auth/me`
+6. Load tasks where `assignedToId = staff.id`
+7. Update task status through the workflow:
    - `todo` → `in_progress` (start working)
    - `in_progress` → `pending_review` (submit for review)
    - `pending_review` → `approved`/`rejected` (manager decision)
@@ -394,6 +459,68 @@ Content-Type: application/json
 ```
 Set-Cookie: token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...; HttpOnly; Secure; SameSite=Lax; Max-Age=604800
 ```
+
+---
+
+### **Email Verification Endpoints**
+
+| Method | Endpoint                              | Auth          | Description                            |
+| ------ | ------------------------------------ | ------------- | -------------------------------------- |
+| `POST` | `/api/verification/send-verification-email` | Public        | Send verification email to user         |
+| `GET`  | `/api/verification/verify-email`           | Public        | Verify email with token (via email link) |
+
+#### **Send Verification Email Example**
+
+**Request:**
+
+```bash
+POST /api/verification/send-verification-email
+Content-Type: application/json
+
+{
+  "email": "user@example.com"
+}
+```
+
+**Response:**
+
+```json
+{
+  "message": "Verification email sent successfully. Please check your inbox."
+}
+```
+
+#### **Verify Email Example**
+
+**Request:**
+
+```bash
+GET /api/verification/verify-email?token=1175067baa7d81d6d65aa499ace98b484cd23930cd7373c6167357b5dbc39f9f
+```
+
+**Response:**
+
+```json
+{
+  "message": "Email verified successfully! You can now login.",
+  "user": {
+    "id": "cm123abc",
+    "email": "user@example.com",
+    "name": "John Doe",
+    "role": "manager",
+    "isVerified": true,
+    "createdAt": "2024-01-01T00:00:00.000Z",
+    "updatedAt": "2024-01-01T00:00:00.000Z"
+  }
+}
+```
+
+**Frontend Verification Flow:**
+
+1. User clicks email link → `http://localhost:3000/verify-email?token=xxx`
+2. Frontend page calls backend API
+3. Backend updates `isVerified: true` in database
+4. Frontend redirects to login with success message
 
 ---
 
@@ -560,8 +687,10 @@ X-Admin-Secret: your_admin_secret_key
 - **Password Hashing**: bcrypt with 10 salt rounds
 - **JWT Tokens**: 7-day expiration, httpOnly cookies
 - **Role-Based Access Control**: Admin, Manager, Staff roles
-- **Email Verification**: Required for account activation
+- **Email Verification**: Required for account activation with token-based verification
+- **Verification Tokens**: Secure hashed tokens with expiration time
 - **Admin Secret Key**: Separate authentication for admin operations
+- **Protected Routes**: Middleware-based route protection with verification checks
 
 ### **Input Validation & Sanitization**
 
