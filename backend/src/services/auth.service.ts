@@ -18,7 +18,7 @@ export const generateToken = (userId: string): string => {
     expiresIn: "1d",
   });
 };
-export const getAllManagers = async (): Promise<Omit<User, "passwordHash">[]> => {
+export const getAllManagers = async (): Promise<Omit<User, "passwordHash" | "verificationToken" | "verificationTokenExpires">[]> => {
   const managers = await prisma.user.findMany({
     where: {
       role: "manager",
@@ -120,7 +120,7 @@ export const getAllUsersWithHierarchy = async (): Promise<UserWithStaff[]> => {
   return allUsers;
 };
 
-export const updateUserRole = async (userId: string, data: UpdateUserRoleDTO): Promise<Omit<User, "passwordHash">> => {
+export const updateUserRole = async (userId: string, data: UpdateUserRoleDTO): Promise<Omit<User, "passwordHash" | "verificationToken" | "verificationTokenExpires">> => {
   // Check if user exists
   const existingUser = await prisma.user.findUnique({
     where: { id: userId, deletedAt: null },
@@ -160,11 +160,11 @@ export const updateUserRole = async (userId: string, data: UpdateUserRoleDTO): P
     },
   });
 
-  const { passwordHash, ...userWithoutPassword } = updatedUser;
+  const { passwordHash, verificationToken, verificationTokenExpires, ...userWithoutPassword } = updatedUser;
   return userWithoutPassword;
 };
 
-export const softDeleteUser = async (userId: string): Promise<Omit<User, "passwordHash">> => {
+export const softDeleteUser = async (userId: string): Promise<Omit<User, "passwordHash" | "verificationToken" | "verificationTokenExpires">> => {
   // Check if user exists
   const existingUser = await prisma.user.findUnique({
     where: { id: userId, deletedAt: null },
@@ -196,10 +196,10 @@ export const softDeleteUser = async (userId: string): Promise<Omit<User, "passwo
     },
   });
 
-  const { passwordHash, ...userWithoutPassword } = deletedUser;
+  const { passwordHash, verificationToken, verificationTokenExpires, ...userWithoutPassword } = deletedUser;
   return userWithoutPassword;
 };
-export const getStaffByManagerId = async (managerId: string): Promise<Omit<User, "passwordHash">[]> => {
+export const getStaffByManagerId = async (managerId: string): Promise<Omit<User, "passwordHash" | "verificationToken" | "verificationTokenExpires">[]> => {
   const staff = await prisma.user.findMany({
     where: {
       managerId: managerId,
@@ -239,9 +239,9 @@ export const login = async (data: LoginDTO): Promise<{ user: User; token: string
     throw new Error("Invalid credentials");
   }
 
-  // if (!user.isVerified) {
-  //   throw new Error("Email not verified");
-  // }
+  if (!user.isVerified) {
+    throw new Error("Email not verified");
+  }
 
   const token = generateToken(user.id);
 
@@ -268,7 +268,7 @@ export const createManager = async (data: { name: string; email: string; passwor
       passwordHash: hashedPassword,
       role: "manager",
       managerId: null, // Manager tidak punya manager
-      isVerified: true,
+      isVerified: false,
     },
   });
 
@@ -310,7 +310,7 @@ export const createStaffByAdmin = async (data: { name: string; email: string; pa
       passwordHash: hashedPassword,
       role: "staff",
       managerId: data.managerId,
-      isVerified: true,
+      isVerified: false,
     },
   });
 

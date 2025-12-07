@@ -9,6 +9,7 @@ import authRoutes from "./routes/auth.routes";
 import taskRoutes from "./routes/task.routes";
 import userRoutes from "./routes/user.routes";
 import adminRoutes from "./routes/admin.routes"; // ✅ Import admin routes
+import verificationRoutes from "./routes/verification.routes"; // ✅ Import verification routes
 
 const app = express();
 const globalLimiter = rateLimit({
@@ -43,6 +44,7 @@ app.use("/api/admin", adminRoutes); // ✅ Fix: kasih adminRoutes
 app.use("/api/auth", authRoutes);
 app.use("/api/tasks", taskRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/verification", verificationRoutes); // ✅ Add verification routes
 
 // 404 Handler
 app.use((_req, res) => {

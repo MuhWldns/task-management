@@ -69,10 +69,10 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
         role: user.role,
       },
     });
-  } catch (error) {
-    console.error(error.msg);
+  } catch (error: any) {
+    console.error(error.message || error);
     return res.status(401).json({
-      error: "Something Went Wrong, Please Try Again",
+      error: error.message || "Something Went Wrong, Please Try Again",
     });
   }
 };
