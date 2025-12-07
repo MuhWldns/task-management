@@ -2,13 +2,14 @@ import express from "express";
 import { prisma } from "../../db/prisma"; // ✅ Fix path
 import { TaskPriority, TaskStatus } from "@prisma/client";
 import { authenticate } from "../middlewares/auth.middleware";
+import { requireVerifiedEmail } from "../middlewares/verification.middleware";
 import { AuthRequest } from "../types"; // ✅ Import AuthRequest type
 import { updateTaskStatus, getPendingReviewTasks, reviewTask } from "../controllers/task.controller";
 
 const router = express.Router();
 
-// ✅ 1. Create Task & Assign to Staff (Manager Only)
-router.post("/", authenticate, async (req: AuthRequest, res) => {
+// ✅ 1. Create Task & Assign to Staff (Manager Only) - Requires verification
+router.post("/", authenticate, requireVerifiedEmail, async (req: AuthRequest, res) => {
   // ✅ Add AuthRequest type
   try {
     const managerId = req.user?.id;
@@ -105,7 +106,8 @@ router.post("/", authenticate, async (req: AuthRequest, res) => {
 });
 
 // ✅ 2. Get All Tasks (Manager View)
-router.get("/", authenticate, async (req: AuthRequest, res) => {
+// ✅ Get all tasks (Manager only) - Requires verification
+router.get("/", authenticate, requireVerifiedEmail, async (req: AuthRequest, res) => {
   // ✅ Add AuthRequest type
   try {
     const userId = req.user?.id;
@@ -162,7 +164,8 @@ router.get("/", authenticate, async (req: AuthRequest, res) => {
 });
 
 // ✅ 3. Get My Tasks (Staff View)
-router.get("/my-tasks", authenticate, async (req: AuthRequest, res) => {
+// ✅ Get staff's own tasks (Staff only) - Requires verification
+router.get("/my-tasks", authenticate, requireVerifiedEmail, async (req: AuthRequest, res) => {
   // ✅ Add AuthRequest type
   try {
     const userId = req.user?.id;
@@ -205,14 +208,14 @@ router.get("/my-tasks", authenticate, async (req: AuthRequest, res) => {
   }
 });
 
-// ✅ 4. Update task status (PUT /api/tasks/:id/status)
-router.put("/:id/status", authenticate, updateTaskStatus);
+// ✅ 4. Update task status (PUT /api/tasks/:id/status) - Requires verification
+router.put("/:id/status", authenticate, requireVerifiedEmail, updateTaskStatus);
 
-// ✅ 5. Get pending review tasks (GET /api/tasks/pending-review)
-router.get("/pending-review", authenticate, getPendingReviewTasks);
+// ✅ 5. Get pending review tasks (GET /api/tasks/pending-review) - Requires verification
+router.get("/pending-review", authenticate, requireVerifiedEmail, getPendingReviewTasks);
 
-// ✅ 6. Review task (PUT /api/tasks/:id/review)
-router.put("/:id/review", authenticate, reviewTask);
+// ✅ 6. Review task (PUT /api/tasks/:id/review) - Requires verification
+router.put("/:id/review", authenticate, requireVerifiedEmail, reviewTask);
 
 // ✅ Helper: Map backend status to frontend status
 function mapStatusToFrontend(status: TaskStatus): string {

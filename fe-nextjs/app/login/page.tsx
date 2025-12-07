@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/Button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Lock, Mail, Eye, EyeOff, UserCircle, Shield } from "lucide-react";
+import { Lock, Mail, Eye, EyeOff, UserCircle, Shield, MailOpen } from "lucide-react";
 import { toast } from "sonner";
 import { Turnstile } from "@marsidev/react-turnstile";
 
@@ -18,7 +18,45 @@ export default function LoginPage() {
   const [role, setRole] = useState<"staff" | "manager">("staff");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSendingVerification, setIsSendingVerification] = useState(false);
+  const [showVerificationButton, setShowVerificationButton] = useState(false);
+  const [lastAttemptedEmail, setLastAttemptedEmail] = useState("");
   const [turnstileToken, setTurnstileToken] = useState("");
+
+  const handleSendVerificationEmail = async () => {
+    if (!lastAttemptedEmail) {
+      toast.error("Please enter your email address first");
+      return;
+    }
+
+    setIsSendingVerification(true);
+    try {
+      console.log("Sending verification email to:", lastAttemptedEmail);
+
+      const response = await fetch("http://localhost:3007/api/verification/send-verification-email", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email: lastAttemptedEmail }),
+      });
+
+      console.log("Response status:", response.status);
+      const data = await response.json();
+      console.log("Response data:", data);
+
+      if (response.ok) {
+        toast.success(data.message || "Verification email sent successfully!");
+      } else {
+        toast.error(data.error || "Failed to send verification email");
+      }
+    } catch (error) {
+      console.error("Send verification email error:", error);
+      toast.error("Network error. Please try again.");
+    } finally {
+      setIsSendingVerification(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -49,7 +87,17 @@ export default function LoginPage() {
 
       if (!response.ok) {
         // ✅ Show error tanpa remount Turnstile
-        toast.error(data.error || "Login failed");
+        const errorMessage = typeof data.error === 'string' ? data.error : data.error?.message || "Login failed";
+
+        // Check if error is about email not verified
+        if (errorMessage && errorMessage.includes("Email not verified")) {
+          setLastAttemptedEmail(email);
+          setShowVerificationButton(true);
+          toast.error(errorMessage || "Email not verified. Please check your inbox.");
+        } else {
+          toast.error(errorMessage);
+        }
+
         setIsLoading(false);
         return;
       }
@@ -63,6 +111,13 @@ export default function LoginPage() {
       localStorage.setItem("user", JSON.stringify(data.user));
       toast.success("Login successful!");
 
+      // Check if user is verified
+      if (!data.user.isVerified) {
+        router.push("/please-verify");
+        return;
+      }
+
+      // Normal redirect for verified users
       if (data.user.role === "manager") {
         router.push("/manager");
       } else {
@@ -158,6 +213,42 @@ export default function LoginPage() {
                 "Sign In"
               )}
             </Button>
+
+            {/* Email Verification Button - Only show when email is not verified */}
+            {showVerificationButton && (
+              <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <p className="text-sm text-yellow-800 font-medium">
+                      Email not verified
+                    </p>
+                    <p className="text-xs text-yellow-600 mt-1">
+                      Check your inbox or resend verification email
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSendVerificationEmail}
+                    disabled={isSendingVerification}
+                    className="ml-3 border-yellow-300 text-yellow-700 hover:bg-yellow-100"
+                  >
+                    {isSendingVerification ? (
+                      <>
+                        <div className="h-3 w-3 animate-spin rounded-full border border-yellow-700 border-t-transparent mr-2" />
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <MailOpen className="h-3 w-3 mr-2" />
+                        Resend
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
           </form>
         </CardContent>
       </Card>

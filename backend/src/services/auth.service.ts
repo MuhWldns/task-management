@@ -239,9 +239,9 @@ export const login = async (data: LoginDTO): Promise<{ user: User; token: string
     throw new Error("Invalid credentials");
   }
 
-  if (!user.isVerified) {
-    throw new Error("Email not verified");
-  }
+  // if (!user.isVerified) {
+  //   throw new Error("Email not verified");
+  // }
 
   const token = generateToken(user.id);
 

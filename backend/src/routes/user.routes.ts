@@ -1,12 +1,13 @@
 import express from "express";
 import { prisma } from "../../db/prisma"; // ✅ Fix path
 import { authenticate } from "../middlewares/auth.middleware";
+import { requireVerifiedEmail } from "../middlewares/verification.middleware";
 import { AuthRequest } from "../types";
 
 const router = express.Router();
 
-// ✅ GET /api/users/staff - Get all staff (Manager only)
-router.get("/staff", authenticate, async (req: AuthRequest, res) => {
+// ✅ GET /api/users/staff - Get all staff (Manager only) - Requires verification
+router.get("/staff", authenticate, requireVerifiedEmail, async (req: AuthRequest, res) => {
   try {
     if (!req.user) {
       return res.status(401).json({ error: "Not authenticated" });
