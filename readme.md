@@ -497,7 +497,7 @@ Content-Type: application/json
 
 ```mermaid
 graph TD
-    A[User clicks "Forgot Password?"] --> B[/forgot-password]
+    A["User clicks Forgot Password?"] --> B[/forgot-password]
     B --> C[Enter Email + Captcha]
     C --> D[POST /api/auth/forgot-password]
     D --> E[Generate Reset Token]
