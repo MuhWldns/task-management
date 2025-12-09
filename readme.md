@@ -497,20 +497,20 @@ Content-Type: application/json
 
 ```mermaid
 graph TD
-    A["User clicks Forgot Password?"] --> B[/forgot-password]
-    B --> C[Enter Email + Captcha]
-    C --> D[POST /api/auth/forgot-password]
+    A[User clicks Forgot Password] --> B[forgot-password page]
+    B --> C[Enter Email and Captcha]
+    C --> D[POST forgot-password API]
     D --> E[Generate Reset Token]
     E --> F[Send Email with Reset Link]
     F --> G[User Checks Email]
     G --> H[Click Reset Link]
-    H --> I[/reset-password?token=xxx]
+    H --> I[reset-password page]
     I --> J[Validate Token via API]
-    J --> K{Token Valid?}
+    J --> K{Token Valid}
     K -->|Valid| L[Show Reset Form]
-    K -->|Invalid/Expired| M[Show Error Page]
+    K -->|Invalid| M[Show Error Page]
     L --> N[Enter New Password]
-    N --> O[POST /api/auth/reset-password]
+    N --> O[POST reset-password API]
     O --> P[Update Password]
     P --> Q[Clear Reset Token]
     Q --> R[Redirect to Login]
