@@ -40,6 +40,14 @@ export interface UpdateTaskStatusDTO {
   status: "todo" | "in_progress" | "pending_review" | "approved" | "rejected";
 }
 
+export interface UpdateTaskDTO {
+  title?: string;
+  description?: string;
+  priority?: "low" | "medium" | "high";
+  dueDate?: Date;
+  assignedToId?: string;
+}
+
 export interface UserWithStaff {
   id: string;
   name: string;

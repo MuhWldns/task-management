@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -213,6 +214,12 @@ export default function LoginPage() {
                 "Sign In"
               )}
             </Button>
+
+            <div className="text-center">
+              <Link href="/forgot-password" className="text-sm text-blue-600 hover:text-blue-800">
+                Forgot your password?
+              </Link>
+            </div>
 
             {/* Email Verification Button - Only show when email is not verified */}
             {showVerificationButton && (

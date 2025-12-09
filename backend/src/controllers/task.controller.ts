@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { TaskStatus } from "@prisma/client";
 import { AuthRequest } from "../types";
-import { getTaskById, updateTaskStatus as updateTaskStatusService, getPendingReviewTasks as getPendingReviewTasksService, reviewTask as reviewTaskService, validateTaskAction } from "../services/task.service";
+import { getTaskById, updateTaskStatus as updateTaskStatusService, getPendingReviewTasks as getPendingReviewTasksService, reviewTask as reviewTaskService, validateTaskAction, updateTask as updateTaskService } from "../services/task.service";
 
 // Update task status (PUT /api/tasks/:id/status)
 export const updateTaskStatus = async (req: AuthRequest, res: Response) => {
@@ -147,3 +147,49 @@ function mapStatusToFrontend(status: TaskStatus): string {
   };
   return statusMap[status] || "pending";
 }
+
+// Update task details (PUT /api/tasks/:id)
+export const updateTask = async (req: AuthRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { title, description, priority, dueDate, assignedToId } = req.body;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: "User not authenticated" });
+    }
+
+    // Validate at least one field is provided
+    if (!title && !description && !priority && !dueDate && !assignedToId) {
+      return res.status(400).json({ error: "At least one field must be provided" });
+    }
+
+    // Validate priority if provided
+    if (priority && !["low", "medium", "high"].includes(priority)) {
+      return res.status(400).json({ error: "Invalid priority" });
+    }
+
+    // Validate due date if provided
+    if (dueDate && isNaN(Date.parse(dueDate))) {
+      return res.status(400).json({ error: "Invalid due date" });
+    }
+
+    // Prepare update data
+    const updates: any = {};
+    if (title !== undefined) updates.title = title;
+    if (description !== undefined) updates.description = description;
+    if (priority !== undefined) updates.priority = priority;
+    if (dueDate !== undefined) updates.dueDate = new Date(dueDate);
+    if (assignedToId !== undefined) updates.assignedToId = assignedToId;
+
+    const updatedTask = await updateTaskService(id, userId, updates);
+
+    res.status(200).json({
+      message: "Task updated successfully",
+      task: updatedTask,
+    });
+  } catch (error: any) {
+    console.error("Update task error:", error);
+    res.status(500).json({ error: error.message || "Failed to update task" });
+  }
+};

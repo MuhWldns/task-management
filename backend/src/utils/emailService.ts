@@ -79,3 +79,48 @@ export const sendWelcomeEmail = async (email: string, name: string): Promise<boo
     return false;
   }
 };
+
+/**
+ * Send password reset email with link
+ */
+export const sendPasswordResetEmail = async (email: string, resetToken: string): Promise<boolean> => {
+  try {
+    const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
+
+    const { data, error } = await resend.emails.send({
+      from: "support<support@muhwldns.me>",
+      to: [email],
+      subject: "Reset Your Password",
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #333;">Password Reset Request</h2>
+          <p>Hi there,</p>
+          <p>We received a request to reset your password for your Task Management account.</p>
+          <p>Click the link below to reset your password:</p>
+          <a href="${resetLink}" style="display: inline-block; background-color: #dc3545; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; margin: 20px 0;">
+            Reset Password
+          </a>
+          <p>Or copy and paste this link into your browser:</p>
+          <p style="word-break: break-all; color: #666;">${resetLink}</p>
+          <p><strong>Note:</strong> This link will expire in 10 minutes.</p>
+          <p>If you didn't request this password reset, you can safely ignore this email. Your password will remain unchanged.</p>
+          <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+          <p style="color: #666; font-size: 12px;">
+            This is an automated message from Task Management System. Please do not reply to this email.
+          </p>
+        </div>
+      `,
+    });
+
+    if (error) {
+      console.error("Password reset email error:", error);
+      return false;
+    }
+
+    console.log("Password reset email sent successfully:", data);
+    return true;
+  } catch (error) {
+    console.error("Error sending password reset email:", error);
+    return false;
+  }
+};

@@ -52,6 +52,7 @@ export default function TaskManagementPage() {
   const [taskDueDate, setTaskDueDate] = useState("");
   const [assignedStaffId, setAssignedStaffId] = useState("");
   const [isCreating, setIsCreating] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   // Filter state
   const [filterStatus, setFilterStatus] = useState<string>("all");
@@ -61,6 +62,8 @@ export default function TaskManagementPage() {
   // Modal state
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [showEditForm, setShowEditForm] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
 
   useEffect(() => {
     verifyAccess();
@@ -167,10 +170,68 @@ export default function TaskManagementPage() {
     }
   };
 
+  const handleUpdateTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTask) return;
+
+    setIsUpdating(true);
+
+    try {
+      const response = await fetch(`http://localhost:3007/api/tasks/${editingTask.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          title: taskTitle,
+          description: taskDescription,
+          priority: taskPriority,
+          dueDate: taskDueDate,
+          assignedToId: assignedStaffId,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to update task");
+      }
+
+      toast.success("Task updated successfully!");
+
+      // Reset form and close modal
+      setTaskTitle("");
+      setTaskDescription("");
+      setTaskPriority("medium");
+      setTaskDueDate("");
+      setAssignedStaffId("");
+      setShowEditForm(false);
+      setEditingTask(null);
+
+      fetchData();
+    } catch (error: any) {
+      toast.error(error.message || "Failed to update task");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   // Handle view task details
   const handleViewDetails = (task: Task) => {
     setSelectedTask(task);
     setShowDetailModal(true);
+  };
+
+  // Handle edit task
+  const handleEditTask = (task: Task) => {
+    setEditingTask(task);
+    setTaskTitle(task.title);
+    setTaskDescription(task.description);
+    setTaskPriority(task.priority);
+    setTaskDueDate(task.dueDate.split('T')[0]);
+    setAssignedStaffId(task.assignedTo.id);
+    setShowEditForm(true);
   };
 
   const handleLogout = async () => {
@@ -555,7 +616,7 @@ export default function TaskManagementPage() {
                         <Eye className="h-4 w-4 mr-2" />
                         View Details
                       </Button>
-                      <Button variant="outline" size="sm">
+                      <Button variant="outline" size="sm" onClick={() => handleEditTask(task)}>
                         Edit
                       </Button>
                     </div>
@@ -566,6 +627,147 @@ export default function TaskManagementPage() {
           </div>
         )}
       </main>
+
+      {/* Edit Task Modal */}
+      {showEditForm && editingTask && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b sticky top-0 bg-white">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Edit Task</h3>
+                <p className="text-sm text-gray-500 mt-1">Update task information</p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowEditForm(false);
+                  setEditingTask(null);
+                  setTaskTitle("");
+                  setTaskDescription("");
+                  setTaskPriority("medium");
+                  setTaskDueDate("");
+                  setAssignedStaffId("");
+                }}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleUpdateTask} className="p-6 space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="editTaskTitle">Task Title *</Label>
+                <Input
+                  id="editTaskTitle"
+                  placeholder="e.g., Develop login feature"
+                  value={taskTitle}
+                  onChange={(e) => setTaskTitle(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="editTaskDescription">Description *</Label>
+                <Textarea
+                  id="editTaskDescription"
+                  placeholder="Describe the task in detail..."
+                  value={taskDescription}
+                  onChange={(e) => setTaskDescription(e.target.value)}
+                  required
+                  rows={4}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="editTaskPriority">Priority *</Label>
+                  <Select value={taskPriority} onValueChange={(value: "low" | "medium" | "high") => setTaskPriority(value)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select priority" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="low">Low</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="high">High</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="editTaskDueDate">Due Date *</Label>
+                  <Input
+                    id="editTaskDueDate"
+                    type="date"
+                    value={taskDueDate}
+                    onChange={(e) => setTaskDueDate(e.target.value)}
+                    required
+                    min={new Date().toISOString().split("T")[0]}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="editAssignedStaff">Assign To *</Label>
+                  <Select value={assignedStaffId} onValueChange={setAssignedStaffId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select staff" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {staffList.map((staff) => (
+                        <SelectItem key={staff.id} value={staff.id}>
+                          {staff.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-4">
+                <Button type="submit" disabled={isUpdating || staffList.length === 0}>
+                  {isUpdating ? "Updating..." : "Update Task"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setShowEditForm(false);
+                    setEditingTask(null);
+                    setTaskTitle("");
+                    setTaskDescription("");
+                    setTaskPriority("medium");
+                    setTaskDueDate("");
+                    setAssignedStaffId("");
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+
+              {staffList.length === 0 && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="h-5 w-5 text-yellow-600 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium text-yellow-800">No staff available</p>
+                      <p className="text-sm text-yellow-700 mt-1">
+                        Please add staff members first before updating tasks.{" "}
+                        <button
+                          type="button"
+                          onClick={() => router.push("/manager/staff")}
+                          className="underline font-medium hover:text-yellow-900"
+                        >
+                          Go to Staff Management
+                        </button>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Task Detail Modal */}
       {showDetailModal && selectedTask && (

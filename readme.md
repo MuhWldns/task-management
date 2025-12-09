@@ -34,6 +34,7 @@ A comprehensive task management application with role-based access control (Admi
 - **Linting**: ESLint
 - **Code Formatting**: Prettier
 - **Version Control**: Git
+- **Password Reset**: 🆕 Secure token-based password recovery system
 
 ---
 
@@ -51,6 +52,7 @@ task-management/
 │   │   ├── controllers/
 │   │   │   ├── auth.controller.ts # Authentication logic
 │   │   │   ├── admin.controller.ts # Admin operations
+│   │   │   ├── passwordReset.controller.ts # 🆕 Password reset logic
 │   │   │   ├── task.controller.ts # Task CRUD operations
 │   │   │   └── verification.controller.ts # Email verification logic
 │   │   ├── middlewares/
@@ -64,6 +66,7 @@ task-management/
 │   │   │   └── verification.routes.ts # Email verification routes
 │   │   ├── services/
 │   │   │   ├── auth.service.ts    # Business logic for auth
+│   │   │   ├── passwordReset.service.ts # 🆕 Password reset business logic
 │   │   │   ├── user.service.ts    # User management logic
 │   │   │   ├── task.service.ts    # Task management logic
 │   │   │   └── verification.service.ts # Email verification service
@@ -72,7 +75,8 @@ task-management/
 │   │   ├── utils/
 │   │   │   ├── verifyTurnstile.ts # Captcha verification
 │   │   │   ├── verificationToken.ts # Token generation & validation
-│   │   │   └── emailService.ts   # Email sending service
+│   │   │   ├── passwordResetToken.ts # 🆕 Password reset token utilities
+│   │   │   └── emailService.ts   # 🔄 Email sending service (updated)
 │   │   └── index.ts               # Express server entry point
 │   ├── .env                       # Environment variables
 │   └── package.json
@@ -92,7 +96,11 @@ task-management/
     │   ├── staff/
     │   │   └── page.tsx           # Staff dashboard
     │   ├── login/
-    │   │   └── page.tsx           # Login page
+    │   │   └── page.tsx           # Login page (🔄 updated with forgot password link)
+    │   ├── forgot-password/
+    │   │   └── page.tsx           # 🆕 Forgot password request page
+    │   ├── reset-password/
+    │   │   └── page.tsx           # 🆕 Password reset form page
     │   ├── please-verify/
     │   │   └── page.tsx           # Email verification page
     │   ├── verify-email/
@@ -410,6 +418,222 @@ graph TD
 
 ---
 
+## 🔌 Password Reset Endpoints
+
+| Method | Endpoint                              | Auth          | Description                            |
+| ------ | ------------------------------------- | ------------- | -------------------------------------- |
+| `POST` | `/api/auth/forgot-password`             | Public        | Request password reset email            |
+| `POST` | `/api/auth/validate-reset-token`        | Public        | Validate password reset token           |
+| `POST` | `/api/auth/reset-password`              | Public        | Reset password with token              |
+
+#### **Forgot Password Example**
+
+**Request:**
+
+```bash
+POST /api/auth/forgot-password
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "turnstileToken": "cloudflare-turnstile-token"
+}
+```
+
+**Response:**
+
+```json
+{
+  "message": "Password reset link sent to your email."
+}
+```
+
+#### **Validate Reset Token Example**
+
+**Request:**
+
+```bash
+POST /api/auth/validate-reset-token
+Content-Type: application/json
+
+{
+  "token": "1175067baa7d81d6d65aa499ace98b484cd23930cd7373c6167357b5dbc39f9f"
+}
+```
+
+**Response:**
+
+```json
+{
+  "message": "Token is valid"
+}
+```
+
+#### **Reset Password Example**
+
+**Request:**
+
+```bash
+POST /api/auth/reset-password
+Content-Type: application/json
+
+{
+  "token": "1175067baa7d81d6d65aa499ace98b484cd23930cd7373c6167357b5dbc39f9f",
+  "password": "newSecurePassword123"
+}
+```
+
+**Response:**
+
+```json
+{
+  "message": "Password reset successfully"
+}
+```
+
+---
+
+## 🔄 Password Reset Flow
+
+```mermaid
+graph TD
+    A[User clicks "Forgot Password?"] --> B[/forgot-password]
+    B --> C[Enter Email + Captcha]
+    C --> D[POST /api/auth/forgot-password]
+    D --> E[Generate Reset Token]
+    E --> F[Send Email with Reset Link]
+    F --> G[User Checks Email]
+    G --> H[Click Reset Link]
+    H --> I[/reset-password?token=xxx]
+    I --> J[Validate Token via API]
+    J --> K{Token Valid?}
+    K -->|Valid| L[Show Reset Form]
+    K -->|Invalid/Expired| M[Show Error Page]
+    L --> N[Enter New Password]
+    N --> O[POST /api/auth/reset-password]
+    O --> P[Update Password]
+    P --> Q[Clear Reset Token]
+    Q --> R[Redirect to Login]
+```
+
+**Password Reset Process**:
+
+1. **Request Reset**: User enters email on `/forgot-password` page
+2. **Token Generation**: Backend generates secure token (SHA256 hashed)
+3. **Email Sending**: Reset link sent to user's email
+4. **Token Validation**: Frontend validates token on page load
+5. **Password Reset**: User submits new password with token
+6. **Security Cleanup**: Token cleared after successful reset
+
+**Security Features**:
+
+- **Token Expiry**: 10-minute auto-expiration
+- **One-Time Use**: Token cleared after successful reset
+- **Rate Limiting**: Prevents spam requests
+- **Captcha Protection**: Cloudflare Turnstile verification
+- **User Enumeration Protection**: Same response for existing/non-existing emails
+- **Secure Hashing**: SHA256 for token storage
+
+---
+
+## 📧 Email Templates
+
+### **Password Reset Email**
+
+**Subject**: "Reset Your Password"
+
+**Content**:
+- Reset button with red styling (`#dc3545`)
+- Reset link as fallback
+- 10-minute expiry warning
+- Security notice about unauthorized requests
+- Professional footer with Task Management branding
+
+### **Email Verification Email**
+
+**Subject**: "Verify Your Email Address"
+
+**Content**:
+- Verification button with blue styling (`#007bff`)
+- Verification link as fallback
+- 10-minute expiry warning
+- Instructions for email verification process
+
+### **Welcome Email**
+
+**Subject**: "Welcome to Task Management System"
+
+**Content**:
+- Personalized greeting with user's name
+- Confirmation of successful verification
+- Login button with green styling (`#28a745`)
+- Professional welcome message
+
+---
+
+## 🗄️ Updated Database Schema
+
+### **User Model (Updated)**
+
+```typescript
+interface User {
+  id: string                    // UUID
+  name: string
+  email: string                 // Unique
+  passwordHash?: string         // Optional for OAuth
+  role: 'manager' | 'staff'
+  isVerified: boolean           // Default: false
+  verificationToken?: string    // Email verification token
+  verificationTokenExpires?: DateTime  // Token expiry
+  passwordResetToken?: string   // 🆕 Password reset token
+  passwordResetExpires?: DateTime  // 🆕 Password reset token expiry
+  managerId?: string           // Self-relation for manager-staff
+  createdAt: DateTime
+  updatedAt: DateTime
+  deletedAt?: DateTime         // Soft delete field
+}
+```
+
+**New Fields Added**:
+- `passwordResetToken`: Hashed token for password reset
+- `passwordResetExpires`: Expiration time for reset token
+
+---
+
+## 🛠️ Implementation Files
+
+### **Backend Password Reset Files**
+
+```
+backend/
+├── src/
+│   ├── controllers/
+│   │   └── passwordReset.controller.ts    # 🆕 Password reset API controllers
+│   ├── services/
+│   │   └── passwordReset.service.ts      # 🆕 Password reset business logic
+│   ├── utils/
+│   │   ├── passwordResetToken.ts         # 🆕 Token generation & validation
+│   │   └── emailService.ts              # 🔄 Updated with password reset email
+│   └── routes/
+│       └── auth.routes.ts               # 🔄 Updated with password reset routes
+```
+
+### **Frontend Password Reset Files**
+
+```
+fe-nextjs/
+├── app/
+│   ├── forgot-password/
+│   │   └── page.tsx                    # 🆕 Forgot password request page
+│   └── reset-password/
+│       └── page.tsx                    # 🆕 Password reset form page
+└── app/
+    └── login/
+        └── page.tsx                    # 🔄 Added "Forgot Password?" link
+```
+
+---
+
 ## 🔌 API Endpoints
 
 ### **Authentication Endpoints**
@@ -419,6 +643,9 @@ graph TD
 | `POST` | `/api/auth/login`                | Public        | User login with Turnstile verification |
 | `POST` | `/api/auth/logout`               | JWT Cookie    | Logout & clear cookie                  |
 | `GET`  | `/api/auth/me`                   | JWT Cookie    | Get current authenticated user         |
+| `POST` | `/api/auth/forgot-password`        | Public        | 🆕 Request password reset email      |
+| `POST` | `/api/auth/validate-reset-token`   | Public        | 🆕 Validate password reset token     |
+| `POST` | `/api/auth/reset-password`         | Public        | 🆕 Reset password with token         |
 | `POST` | `/api/auth/manager/create/staff` | JWT (Manager) | Manager creates staff                  |
 | `POST` | `/api/auth/verify/:userId`       | JWT           | Verify user email                      |
 

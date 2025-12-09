@@ -1,5 +1,6 @@
 import { Router } from "express";
-import { login, verifyEmail, logout, registerManager, getCurrentUser } from "../controllers/auth.controller";
+import { login, verifyEmail, logout, getCurrentUser } from "../controllers/auth.controller";
+import { forgotPasswordController, validateResetTokenController, resetPasswordController } from "../controllers/passwordReset.controller";
 import { authenticate, validateLogin } from "../middlewares/auth.middleware";
 
 const router = Router();
@@ -14,5 +15,10 @@ router.get("/me", authenticate, getCurrentUser); // Allow unverified users to ge
 
 // Email verification
 router.post("/verify/:userId", authenticate, verifyEmail);
+
+// Password reset routes
+router.post("/forgot-password", forgotPasswordController);
+router.post("/validate-reset-token", validateResetTokenController);
+router.post("/reset-password", resetPasswordController);
 
 export default router;

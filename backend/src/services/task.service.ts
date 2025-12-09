@@ -226,3 +226,72 @@ export const validateTaskAction = (deadline: Date | null): { canAct: boolean; me
   }
   return { canAct: true };
 };
+
+// Update task details (for managers)
+export const updateTask = async (taskId: string, managerId: string, updates: any) => {
+  // Get the task first
+  const task = await prisma.task.findUnique({
+    where: { id: taskId, deletedAt: null },
+    include: {
+      assignedTo: true,
+    },
+  });
+
+  if (!task) {
+    throw new Error("Task not found");
+  }
+
+  // Check if user is a manager
+  const manager = await prisma.user.findUnique({
+    where: { id: managerId, deletedAt: null },
+  });
+
+  if (!manager || manager.role !== "manager") {
+    throw new Error("Only managers can update tasks");
+  }
+
+  // Validate assigned staff if provided
+  if (updates.assignedToId) {
+    const assignedStaff = await prisma.user.findUnique({
+      where: { id: updates.assignedToId, deletedAt: null },
+    });
+
+    if (!assignedStaff || assignedStaff.role !== "staff") {
+      throw new Error("Invalid staff member");
+    }
+  }
+
+  // Prepare update data - map dueDate to deadline for database
+  const updateData: any = {
+    ...updates,
+    updatedAt: new Date(),
+  };
+
+  // Map dueDate to deadline for database field
+  if (updates.dueDate !== undefined) {
+    updateData.deadline = updates.dueDate;
+    delete updateData.dueDate;
+  }
+
+  // Remove assignedToId from updateData if it's undefined
+  if (updates.assignedToId === undefined) {
+    delete updateData.assignedToId;
+  }
+
+  // Update the task
+  const updatedTask = await prisma.task.update({
+    where: { id: taskId },
+    data: updateData,
+    include: {
+      assignedTo: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+    },
+  });
+
+  return updatedTask;
+};

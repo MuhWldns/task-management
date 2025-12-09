@@ -4,7 +4,7 @@ import { TaskPriority, TaskStatus } from "@prisma/client";
 import { authenticate } from "../middlewares/auth.middleware";
 import { requireVerifiedEmail } from "../middlewares/verification.middleware";
 import { AuthRequest } from "../types"; // ✅ Import AuthRequest type
-import { updateTaskStatus, getPendingReviewTasks, reviewTask } from "../controllers/task.controller";
+import { updateTaskStatus, getPendingReviewTasks, reviewTask, updateTask } from "../controllers/task.controller";
 
 const router = express.Router();
 
@@ -208,13 +208,16 @@ router.get("/my-tasks", authenticate, requireVerifiedEmail, async (req: AuthRequ
   }
 });
 
-// ✅ 4. Update task status (PUT /api/tasks/:id/status) - Requires verification
+// ✅ 4. Update task details (PUT /api/tasks/:id) - Requires verification
+router.put("/:id", authenticate, requireVerifiedEmail, updateTask);
+
+// ✅ 5. Update task status (PUT /api/tasks/:id/status) - Requires verification
 router.put("/:id/status", authenticate, requireVerifiedEmail, updateTaskStatus);
 
-// ✅ 5. Get pending review tasks (GET /api/tasks/pending-review) - Requires verification
+// ✅ 6. Get pending review tasks (GET /api/tasks/pending-review) - Requires verification
 router.get("/pending-review", authenticate, requireVerifiedEmail, getPendingReviewTasks);
 
-// ✅ 6. Review task (PUT /api/tasks/:id/review) - Requires verification
+// ✅ 7. Review task (PUT /api/tasks/:id/review) - Requires verification
 router.put("/:id/review", authenticate, requireVerifiedEmail, reviewTask);
 
 // ✅ Helper: Map backend status to frontend status
